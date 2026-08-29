@@ -2,10 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatEther, parseEther, type Address } from 'viem'
-import { colorFor, publicClient, shortAddress, txUrl } from '@/lib/chain'
+import { keccak256 } from 'viem'
+import {
+  MAX_FEE_PER_GAS,
+  MAX_PRIORITY_FEE_PER_GAS,
+  chain,
+  colorFor,
+  publicClient,
+  shortAddress,
+  txUrl,
+} from '@/lib/chain'
 import { connectMetaMask, hasMetaMask, metaMaskClient } from '@/lib/metamask'
+import { enqueue, resetNonce, takeNonce } from '@/lib/sender'
 import { useBurner } from '@/lib/useBurner'
 import { useChat, humanError } from '@/lib/useChat'
+import { loadMainWallet, saveMainWallet, walletFor } from '@/lib/wallet'
 
 export function fmtMon(wei: bigint, digits = 3): string {
   const n = Number(formatEther(wei))
@@ -23,6 +34,10 @@ const GAS_HEADROOM = parseEther('0.02')
 /** One MetaMask confirmation buys this much popup-free chatting. */
 const TOPUP = parseEther('0.5')
 
+/** Held back when returning the balance: a transfer is exactly 21000 gas,
+ *  and Monad charges the limit at min(base + priority, maxFee). */
+const RECLAIM_GAS_RESERVE = 21000n * MAX_FEE_PER_GAS
+
 export function Chat({ streamer, price }: { streamer: Address; price: bigint }) {
   const { messages, pending, send, dismiss, live, loadingHistory } = useChat(streamer)
   const { account, balance, refreshBalance, nickname, setNickname, fund, funding, faucetError } =
@@ -34,10 +49,15 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
   // the session wallet, and every message keeps flowing popup-free from it.
   const [mmAvailable, setMmAvailable] = useState(false)
   const [toppingUp, setToppingUp] = useState(false)
+  const [reclaiming, setReclaiming] = useState(false)
   const [topupNote, setTopupNote] = useState<string | null>(null)
   const [topupError, setTopupError] = useState<string | null>(null)
+  const [mainWallet, setMainWallet] = useState<Address | null>(null)
 
-  useEffect(() => setMmAvailable(hasMetaMask()), [])
+  useEffect(() => {
+    setMmAvailable(hasMetaMask())
+    setMainWallet(loadMainWallet())
+  }, [])
 
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -71,6 +91,8 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
       setTopupNote('confirming on chain…')
       await publicClient.waitForTransactionReceipt({ hash })
       await refreshBalance()
+      saveMainWallet(from)
+      setMainWallet(from)
       setTopupNote(`+${fmtMon(TOPUP)} MON from ${shortAddress(from)}`)
     } catch (e) {
       setTopupError(humanError(e))
@@ -78,6 +100,59 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
       setToppingUp(false)
     }
   }, [account, refreshBalance])
+
+  /**
+   * Sends the session balance back to the wallet that funded it. No popup:
+   * the session wallet signs for itself. Goes through the same queue as
+   * messages, so it never collides with an in-flight send.
+   */
+  const reclaim = useCallback(async () => {
+    if (!account) return
+    setReclaiming(true)
+    setTopupError(null)
+    setTopupNote(null)
+    try {
+      let main = mainWallet
+      if (!main) {
+        main = await connectMetaMask() // one connect popup, no signing
+        saveMainWallet(main)
+        setMainWallet(main)
+      }
+      const fresh = await publicClient.getBalance({ address: account.address })
+      const value = fresh - RECLAIM_GAS_RESERVE
+      if (value <= 0n) throw new Error('Nothing to return — the balance barely covers gas')
+
+      await enqueue(async () => {
+        const nonce = await takeNonce(
+          () => publicClient.getTransactionCount({ address: account.address }),
+          account.address,
+        )
+        const serialized = await walletFor(account).signTransaction({
+          to: main!,
+          value,
+          gas: 21000n,
+          nonce,
+          chainId: chain.id,
+          type: 'eip1559',
+          maxFeePerGas: MAX_FEE_PER_GAS,
+          maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+        })
+        const hash = keccak256(serialized)
+        await publicClient.sendRawTransaction({ serializedTransaction: serialized })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash })
+        if (receipt.status !== 'success') {
+          throw new Error('Transfer reverted — wait a couple of seconds and try again')
+        }
+      })
+      await refreshBalance()
+      setTopupNote(`returned ${fmtMon(value)} MON to ${shortAddress(main)}`)
+    } catch (e) {
+      resetNonce()
+      setTopupError(humanError(e))
+    } finally {
+      setReclaiming(false)
+    }
+  }, [account, mainWallet, refreshBalance])
 
   const canAfford = balance >= price + GAS_HEADROOM
   const roomOpen = price > 0n
@@ -203,16 +278,28 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
             </button>
           </div>
         </div>
-        {mmAvailable && (
-          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-ink-soft">
-            <button
-              onClick={topUp}
-              disabled={toppingUp}
-              className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
-              title="one MetaMask confirmation moves 0.5 MON into this session wallet — then keep chatting with zero popups"
-            >
-              {toppingUp ? 'waiting for MetaMask…' : `top up ${fmtMon(TOPUP)} MON from MetaMask →`}
-            </button>
+        {(mmAvailable || mainWallet) && (
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-ink-soft">
+            {mmAvailable && (
+              <button
+                onClick={topUp}
+                disabled={toppingUp || reclaiming}
+                className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
+                title="one MetaMask confirmation moves 0.5 MON into this session wallet — then keep chatting with zero popups"
+              >
+                {toppingUp ? 'waiting for MetaMask…' : `top up ${fmtMon(TOPUP)} MON from MetaMask →`}
+              </button>
+            )}
+            {balance > RECLAIM_GAS_RESERVE + parseEther('0.01') && (
+              <button
+                onClick={reclaim}
+                disabled={reclaiming || toppingUp}
+                className="underline underline-offset-2 hover:text-money disabled:opacity-40"
+                title="sends the session balance back to the wallet that funded it — no popup, the session wallet signs for itself"
+              >
+                {reclaiming ? 'returning…' : '← return balance'}
+              </button>
+            )}
             {topupNote && <span className="text-money">{topupNote}</span>}
           </div>
         )}

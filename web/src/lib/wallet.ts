@@ -4,6 +4,7 @@ import { chain, rpcTransport } from './chain'
 
 const PK_KEY = 'monadchat.pk.v1'
 const NICK_KEY = 'monadchat.nick.v1'
+const MAIN_KEY = 'monadchat.mainWallet.v1'
 
 /**
  * The wallet lives in the browser: private key in localStorage.
@@ -74,4 +75,20 @@ export async function requestFaucet(address: string): Promise<{ txHash: string; 
   })
   if (!direct.ok) throw new Error(`Faucet responded ${direct.status}`)
   return direct.json()
+}
+
+/** The wallet that funded this session — where "return balance" sends money back. */
+export function saveMainWallet(address: string) {
+  try {
+    window.localStorage.setItem(MAIN_KEY, address)
+  } catch { /* private mode */ }
+}
+
+export function loadMainWallet(): `0x${string}` | null {
+  try {
+    const v = window.localStorage.getItem(MAIN_KEY)
+    return v && /^0x[0-9a-fA-F]{40}$/.test(v) ? (v as `0x${string}`) : null
+  } catch {
+    return null
+  }
 }
