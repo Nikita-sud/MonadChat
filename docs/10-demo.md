@@ -14,7 +14,15 @@
 ## Адреса
 
 - **Приложение:** https://monadchat-rvfc1.vercel.app
+- **Готовая демо-комната (Chillhop Radio, 0.05 MON, есть затравочные сообщения):**
+  https://monadchat-rvfc1.vercel.app/r/0xe9e2d6B9d3289B465c4ad761f9771Fabd0Dfe82A
+- **Оверлей демо-комнаты для OBS:**
+  https://monadchat-rvfc1.vercel.app/overlay/0xe9e2d6B9d3289B465c4ad761f9771Fabd0Dfe82A
 - **Контракт:** https://testnet.monadvision.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8
+
+Если эфир Chillhop (youtube:5yx6BWlEVcY) вдруг умрёт — живые запасные: synthwave
+`youtube:4xDzrJKXOOY`, Good Life Radio `youtube:36YnV9STBqc`. Сменить источник:
+`node scripts/setup-demo.mjs` после правки ID в скрипте, либо из кабинета.
 
 ⚠️ Интерфейс на английском — хакатон в Амстердаме. Питч тоже готовить на английском.
 
