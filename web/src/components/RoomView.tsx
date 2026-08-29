@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { Address } from 'viem'
 import { addressUrl, shortAddress } from '@/lib/chain'
-import { embedUrl, useRoom } from '@/lib/useRoom'
+import { displaySource, embedUrl, useRoom } from '@/lib/useRoom'
 import { Chat, fmtMon } from './Chat'
 
 export function RoomView({ streamer }: { streamer: Address }) {
@@ -67,7 +67,7 @@ export function RoomView({ streamer }: { streamer: Address }) {
           <div className="hidden shrink-0 items-baseline justify-between gap-4 border-t border-ink px-4 py-2.5 sm:flex">
             <div className="min-w-0">
               <h1 className="truncate font-mono text-[12px] uppercase tracking-[0.12em]">
-                {room?.streamUrl || 'Stream without a source'}
+                {room?.streamUrl ? displaySource(room.streamUrl) : 'Stream without a source'}
               </h1>
               <p className="truncate text-[13px] italic text-ink-soft">
                 Every message is a Monad transaction. The streamer is paid instantly.

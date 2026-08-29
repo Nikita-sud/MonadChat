@@ -43,10 +43,45 @@ export function useRoom(streamer: Address | undefined, pollMs = 10_000) {
   return { room, loading, refresh }
 }
 
-/** "twitch:xqc" | "youtube:VIDEO_ID" | "kick:channel" → iframe URL */
+/**
+ * People paste full links, not channel names. Accepts anything —
+ * "lofigirl", "twitch.tv/lofigirl", "https://youtube.com/watch?v=ID",
+ * "youtu.be/ID", "kick.com/channel" — and boils it down to the bare id.
+ */
+export function normalizeChannelInput(kind: string, raw: string): string {
+  const v = raw.trim().replace(/^@/, '')
+  if (!v) return ''
+  try {
+    const u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`)
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+    const parts = u.pathname.split('/').filter(Boolean)
+    if (host.endsWith('twitch.tv')) return parts[0] ?? ''
+    if (host === 'youtu.be') return parts[0] ?? ''
+    if (host.endsWith('youtube.com')) {
+      const vid = u.searchParams.get('v')
+      if (vid) return vid
+      if (['live', 'embed', 'shorts'].includes(parts[0]) && parts[1]) return parts[1]
+      return parts[0] ?? ''
+    }
+    if (host.endsWith('kick.com')) return parts[0] ?? ''
+  } catch {
+    /* not a URL — treat as a bare name */
+  }
+  return v
+}
+
+/** On-chain "kind:whatever the streamer typed" → human label "kind:bare-id". */
+export function displaySource(streamUrl: string): string {
+  const [kind, ...rest] = streamUrl.split(':')
+  const id = normalizeChannelInput(kind, rest.join(':'))
+  return id ? `${kind}:${id}` : streamUrl
+}
+
+/** "twitch:xqc" | "youtube:VIDEO_ID" | "kick:channel" → iframe URL.
+ *  Normalizes the id first, so rooms saved with a full pasted link still play. */
 export function embedUrl(streamUrl: string, host: string): string | null {
   const [kind, ...rest] = streamUrl.split(':')
-  const id = rest.join(':').trim()
+  const id = normalizeChannelInput(kind, rest.join(':'))
   if (!id) return null
   const parent = host.split(':')[0]
   if (kind === 'twitch') return `https://player.twitch.tv/?channel=${encodeURIComponent(id)}&parent=${parent}&muted=true`

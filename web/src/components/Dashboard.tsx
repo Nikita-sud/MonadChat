@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { formatEther, parseEther } from 'viem'
+import { formatEther, parseEther, type Address } from 'viem'
 import {
   CONTRACT_ADDRESS,
   STREAM_CHAT_ABI,
@@ -11,11 +11,13 @@ import {
   publicClient,
   txUrl,
 } from '@/lib/chain'
+import { connectMetaMask, hasMetaMask, metaMaskClient } from '@/lib/metamask'
 import { enqueue } from '@/lib/sender'
 import { useBurner } from '@/lib/useBurner'
 import { humanError } from '@/lib/useChat'
+import { normalizeChannelInput } from '@/lib/useRoom'
 import { useRoom } from '@/lib/useRoom'
-import { walletFor } from '@/lib/wallet'
+import { requestFaucet, walletFor } from '@/lib/wallet'
 import { fmtMon } from './Chat'
 
 const SOURCES = [
@@ -27,8 +29,17 @@ const SOURCES = [
 const label = 'font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft'
 
 export function Dashboard() {
-  const { account, balance, fund, funding, faucetError } = useBurner()
-  const { room, refresh } = useRoom(account?.address)
+  const burner = useBurner()
+
+  // Streamer identity: the browser wallet by default, MetaMask once connected.
+  const [mm, setMm] = useState<Address | null>(null)
+  const [mmBalance, setMmBalance] = useState<bigint>(0n)
+  const [mmAvailable, setMmAvailable] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+
+  const active: Address | null = mm ?? burner.account?.address ?? null
+  const balance = mm ? mmBalance : burner.balance
+  const { room, refresh } = useRoom(active ?? undefined)
 
   const [price, setPrice] = useState('0.05')
   const [kind, setKind] = useState<(typeof SOURCES)[number]['kind']>('twitch')
@@ -36,6 +47,25 @@ export function Dashboard() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastTx, setLastTx] = useState<string | null>(null)
+  const [funding, setFunding] = useState(false)
+  const [faucetError, setFaucetError] = useState<string | null>(null)
+
+  useEffect(() => setMmAvailable(hasMetaMask()), [])
+
+  // Balance of the MetaMask identity — the burner hook only watches its own key.
+  useEffect(() => {
+    if (!mm) return
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const b = await publicClient.getBalance({ address: mm })
+        if (!cancelled) setMmBalance(b)
+      } catch { /* next tick retries */ }
+    }
+    tick()
+    const t = setInterval(tick, 8000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [mm])
 
   // prefill with the current room settings if one is already open
   useEffect(() => {
@@ -44,16 +74,44 @@ export function Dashboard() {
     const [k, ...rest] = room.streamUrl.split(':')
     if (SOURCES.some((s) => s.kind === k)) {
       setKind(k as typeof kind)
-      setChannel(rest.join(':'))
+      setChannel(normalizeChannelInput(k, rest.join(':')))
     }
   }, [room])
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const isOpen = !!room && room.price > 0n
 
+  const connect = useCallback(async () => {
+    setConnecting(true)
+    setError(null)
+    try {
+      setMm(await connectMetaMask())
+    } catch (e) {
+      setError(humanError(e))
+    } finally {
+      setConnecting(false)
+    }
+  }, [])
+
+  const fund = useCallback(async () => {
+    if (!active) return
+    setFunding(true)
+    setFaucetError(null)
+    try {
+      const { txHash } = await requestFaucet(active)
+      await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
+      if (mm) setMmBalance(await publicClient.getBalance({ address: mm }))
+      else await burner.refreshBalance()
+    } catch (e) {
+      setFaucetError(e instanceof Error ? e.message : 'Faucet unavailable')
+    } finally {
+      setFunding(false)
+    }
+  }, [active, mm, burner])
+
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    if (!account) return
+    if (!active) return
     setBusy(true)
     setError(null)
     setLastTx(null)
@@ -66,16 +124,27 @@ export function Dashboard() {
       }
       if (wei <= 0n) throw new Error('Price must be above zero — zero means the room is closed')
 
-      const args = [wei, channel.trim() ? `${kind}:${channel.trim()}` : ''] as const
+      const ch = normalizeChannelInput(kind, channel)
+      const args = [wei, ch ? `${kind}:${ch}` : ''] as const
       const call = { address: CONTRACT_ADDRESS, abi: STREAM_CHAT_ABI, functionName: 'setRoom', args } as const
 
-      await enqueue(async () => {
-        const gas = gasMargin(await publicClient.estimateContractGas({ ...call, account }))
-        const hash = await walletFor(account).writeContract({ ...call, gas })
+      if (mm) {
+        // MetaMask signs and paces itself — no burner queue involved
+        const gas = gasMargin(await publicClient.estimateContractGas({ ...call, account: mm }))
+        const hash = await metaMaskClient().writeContract({ ...call, account: mm, gas })
         setLastTx(hash)
         const receipt = await publicClient.waitForTransactionReceipt({ hash })
         if (receipt.status !== 'success') throw new Error('Transaction reverted')
-      })
+      } else {
+        const account = burner.account!
+        await enqueue(async () => {
+          const gas = gasMargin(await publicClient.estimateContractGas({ ...call, account }))
+          const hash = await walletFor(account).writeContract({ ...call, gas })
+          setLastTx(hash)
+          const receipt = await publicClient.waitForTransactionReceipt({ hash })
+          if (receipt.status !== 'success') throw new Error('Transaction reverted')
+        })
+      }
       await refresh()
     } catch (err) {
       setError(humanError(err))
@@ -84,7 +153,7 @@ export function Dashboard() {
     }
   }
 
-  if (!account) {
+  if (!active) {
     return <p className="p-8 font-mono text-[11px] text-ink-soft">creating your wallet…</p>
   }
 
@@ -96,21 +165,44 @@ export function Dashboard() {
 
       <h1 className="mt-8 font-display text-5xl">Streamer&apos;s desk</h1>
       <p className="mt-4 max-w-lg text-[15px] leading-relaxed">
-        Your room is tied to the wallet this browser created. Money for messages lands there
-        instantly — no withdrawals, no middlemen.
+        {mm
+          ? 'Your room is tied to your MetaMask wallet. Money for messages lands there instantly — no withdrawals, no middlemen.'
+          : 'Your room is tied to the wallet this browser created. Money for messages lands there instantly — no withdrawals, no middlemen.'}
       </p>
 
       <section className="mt-10 border-t border-ink">
         <div className="flex items-baseline gap-3 border-b border-edge py-3">
+          <span className={`w-24 shrink-0 ${label}`}>wallet</span>
+          <span className="leader" />
+          <span className="font-mono text-[12px]">{mm ? 'MetaMask' : 'this browser'}</span>
+          {mmAvailable && !mm && (
+            <button
+              onClick={connect}
+              disabled={connecting}
+              className="bg-ink px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-paper transition-colors hover:bg-stamp disabled:opacity-40"
+            >
+              {connecting ? 'connecting…' : 'connect MetaMask'}
+            </button>
+          )}
+          {mm && (
+            <button
+              onClick={() => setMm(null)}
+              className="font-mono text-[10px] uppercase tracking-[0.14em] underline underline-offset-2 hover:text-stamp"
+            >
+              use browser wallet
+            </button>
+          )}
+        </div>
+        <div className="flex items-baseline gap-3 border-b border-edge py-3">
           <span className={`w-24 shrink-0 ${label}`}>address</span>
           <span className="leader" />
           <a
-            href={addressUrl(account.address)}
+            href={addressUrl(active)}
             target="_blank"
             rel="noreferrer"
             className="min-w-0 truncate font-mono text-[12px] underline underline-offset-2 hover:text-stamp"
           >
-            {account.address}
+            {active}
           </a>
         </div>
         <div className="flex items-baseline gap-3 border-b border-edge py-3">
@@ -186,7 +278,9 @@ export function Dashboard() {
           disabled={busy}
           className="w-full bg-ink px-4 py-3 font-mono text-[12px] uppercase tracking-[0.2em] text-paper transition-colors hover:bg-stamp disabled:opacity-40"
         >
-          {busy ? 'sending transaction…' : isOpen ? 'Update room' : 'Open room'}
+          {busy
+            ? mm ? 'confirm in MetaMask…' : 'sending transaction…'
+            : isOpen ? 'Update room' : 'Open room'}
         </button>
 
         {error && <p className="text-sm text-stamp">{error}</p>}
@@ -204,8 +298,8 @@ export function Dashboard() {
         <section className="mt-10 border-t border-ink pt-4">
           <h2 className={label}>Room is open — share these links</h2>
           <div className="mt-3 space-y-4">
-            <LinkRow label="for viewers" href={`${origin}/r/${account.address}`} />
-            <LinkRow label="for OBS browser source" href={`${origin}/overlay/${account.address}`} />
+            <LinkRow label="for viewers" href={`${origin}/r/${active}`} />
+            <LinkRow label="for OBS browser source" href={`${origin}/overlay/${active}`} />
           </div>
         </section>
       )}
