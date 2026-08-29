@@ -23,58 +23,53 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-16">
-      <div className="text-sm font-bold tracking-tight">
-        <span className="text-mon">◆</span> MonadChat
-      </div>
+      <div className="font-display text-2xl">MonadChat</div>
 
-      <h1 className="mt-8 text-4xl font-bold leading-tight sm:text-5xl">
+      <h1 className="mt-10 font-display text-6xl leading-[0.95] sm:text-7xl">
         Chat where<br />words cost money
       </h1>
 
-      <p className="mt-5 max-w-xl text-base leading-relaxed text-muted">
+      <p className="mt-8 max-w-xl text-lg leading-relaxed">
         Every message in a stream chat is a Monad transaction. To speak you have to pay, and the
         money lands in the streamer&apos;s wallet immediately — no platform in between. Spam gets
         expensive, attention gets honestly paid for.
       </p>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <Fact title="0.5 seconds" body="from hitting send to confirmation on chain" />
-        <Fact title="No wallet needed" body="the app creates one in your browser, no extensions" />
-        <Fact title="Consensus anti-spam" body="Monad itself rate-limits posting, not our server" />
+      <div className="mt-12 border-t border-ink">
+        <Fact k="latency" v="0.5 seconds from hitting send to confirmation on chain" />
+        <Fact k="wallet" v="none needed — the app creates one in your browser" />
+        <Fact k="anti-spam" v="Monad consensus rate-limits posting, not our server" />
       </div>
 
-      <form onSubmit={go} className="mt-10">
-        <label className="block text-sm font-medium">Join a streamer&apos;s room</label>
-        <div className="mt-2 flex gap-2">
+      <form onSubmit={go} className="mt-14">
+        <label className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
+          Join a streamer&apos;s room
+        </label>
+        <div className="mt-3 flex items-end gap-4">
           <input
             value={addr}
             onChange={(e) => { setAddr(e.target.value); setError(null) }}
             placeholder="0x… streamer address"
-            className="min-w-0 flex-1 rounded-md border border-edge bg-panel px-3 py-2.5 font-mono text-sm outline-none placeholder:font-sans placeholder:text-muted focus:border-mon"
+            className="min-w-0 flex-1 border-b border-ink bg-transparent pb-2 font-mono text-sm outline-none placeholder:text-ink-soft"
           />
-          <button className="shrink-0 rounded-md bg-mon px-5 py-2.5 text-sm font-semibold text-white hover:bg-mon-soft">
+          <button className="shrink-0 bg-ink px-6 py-2.5 font-mono text-[12px] uppercase tracking-[0.14em] text-paper transition-colors hover:bg-stamp">
             Join
           </button>
         </div>
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-3 text-sm text-stamp">{error}</p>}
       </form>
 
-      <p className="mt-6 text-sm text-muted">
+      <p className="mt-8 text-base">
         Streaming?{' '}
-        <Link href="/dashboard" className="font-medium text-mon-soft hover:underline">
+        <Link href="/dashboard" className="underline decoration-ink-soft underline-offset-4 hover:decoration-stamp">
           Open your room
         </Link>{' '}
         — it takes one transaction.
       </p>
 
-      <footer className="mt-16 border-t border-edge pt-5 text-xs text-muted">
+      <footer className="mt-20 border-t border-edge pt-4 font-mono text-[11px] text-ink-soft">
         Monad Testnet · contract{' '}
-        <a
-          href={addressUrl(CONTRACT_ADDRESS)}
-          target="_blank"
-          rel="noreferrer"
-          className="font-mono text-mon-soft hover:underline"
-        >
+        <a href={addressUrl(CONTRACT_ADDRESS)} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
           {CONTRACT_ADDRESS}
         </a>
       </footer>
@@ -82,11 +77,12 @@ export default function Home() {
   )
 }
 
-function Fact({ title, body }: { title: string; body: string }) {
+function Fact({ k, v }: { k: string; v: string }) {
   return (
-    <div className="rounded-lg border border-edge bg-panel p-4">
-      <div className="text-sm font-bold text-mon-soft">{title}</div>
-      <div className="mt-1 text-xs leading-relaxed text-muted">{body}</div>
+    <div className="flex items-baseline gap-3 border-b border-edge py-3">
+      <span className="w-24 shrink-0 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">{k}</span>
+      <span className="leader" />
+      <span className="max-w-md text-right text-[15px]">{v}</span>
     </div>
   )
 }

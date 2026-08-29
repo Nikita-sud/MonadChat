@@ -1,40 +1,51 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0a0a0c;
-  --color-panel: #141418;
-  --color-panel-2: #1c1c22;
-  --color-edge: #2a2a33;
-  --color-muted: #8b8b99;
-  --color-mon: #836ef9;
-  --color-mon-soft: #a394ff;
-  --color-live: #ff4d4d;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Ledger palette: warm paper, ink, a stamp red and a money green. Nothing else. */
+  --color-paper: #f4efe6;
+  --color-paper-2: #ece4d3;
+  --color-ink: #1a1712;
+  --color-ink-soft: #71685a;
+  --color-edge: #d8cdb8;
+  --color-stamp: #bf3a1e;
+  --color-money: #1c6b4a;
+
+  --font-display: var(--font-alsina);
+  --font-serif: Charter, "Iowan Old Style", Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 html, body { height: 100%; }
 
 body {
-  background: var(--color-ink);
-  color: #ececf1;
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
 }
 
-/* Chat feed: thin scrollbar, Twitch-style */
+/* Chat feed: a thin ink scrollbar on paper */
 .chat-scroll { scrollbar-width: thin; scrollbar-color: var(--color-edge) transparent; }
-.chat-scroll::-webkit-scrollbar { width: 8px; }
-.chat-scroll::-webkit-scrollbar-thumb { background: var(--color-edge); border-radius: 4px; }
+.chat-scroll::-webkit-scrollbar { width: 6px; }
+.chat-scroll::-webkit-scrollbar-thumb { background: var(--color-edge); }
 .chat-scroll::-webkit-scrollbar-track { background: transparent; }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
 .msg-in { animation: slide-in 140ms ease-out; }
 
 @keyframes pulse-live {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.3; }
 }
 .live-dot { animation: pulse-live 1.6s ease-in-out infinite; }
+
+/* Dotted leader line, as in a receipt or a menu */
+.leader {
+  flex: 1;
+  min-width: 1.5rem;
+  border-bottom: 1px dotted var(--color-ink-soft);
+  transform: translateY(-0.28em);
+  opacity: 0.5;
+}

@@ -31,22 +31,25 @@ export function Overlay({ streamer }: { streamer: Address }) {
     .slice(-MAX_VISIBLE)
 
   return (
-    <div className="flex h-screen flex-col justify-end gap-2 p-6">
-      {visible.map((m) => (
+    <div className="flex h-screen flex-col items-start justify-end gap-2.5 p-6">
+      {visible.map((m, i) => (
         <div
           key={m.key}
-          className="msg-in max-w-lg rounded-lg border border-white/10 bg-black/75 px-4 py-2.5 backdrop-blur-sm"
-          style={{ boxShadow: '0 4px 24px rgba(0,0,0,.5)' }}
+          className="msg-in max-w-lg border border-ink bg-paper px-4 py-2.5"
+          style={{
+            boxShadow: '3px 3px 0 rgba(26,23,18,.35)',
+            transform: `rotate(${i % 2 === 0 ? '-0.4' : '0.35'}deg)`,
+          }}
         >
-          <div className="flex items-baseline gap-2">
-            <span className="text-base font-bold" style={{ color: colorFor(m.sender) }}>
+          <div className="flex items-baseline gap-3">
+            <span className="text-[15px] font-bold" style={{ color: colorFor(m.sender) }}>
               {m.nickname}
             </span>
-            <span className="rounded bg-mon/25 px-1.5 py-0.5 text-[11px] font-semibold text-mon-soft tabular-nums">
+            <span className="font-mono text-[11px] font-bold text-money tabular-nums">
               {fmtMon(m.amount)} MON
             </span>
           </div>
-          <p className="mt-0.5 text-[15px] leading-snug text-white">{m.text}</p>
+          <p className="mt-0.5 text-[16px] leading-snug text-ink">{m.text}</p>
         </div>
       ))}
     </div>

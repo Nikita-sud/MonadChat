@@ -8,11 +8,11 @@ export default async function RoomPage({ params }: PageProps<'/r/[streamer]'>) {
   if (!isAddress(streamer)) {
     return (
       <main className="flex h-screen flex-col items-center justify-center gap-3 text-center">
-        <h1 className="text-lg font-semibold">That is not a wallet address</h1>
-        <p className="max-w-md text-sm text-muted">
-          A room lives at the streamer&apos;s address: <code className="text-mon-soft">/r/0x…</code>
+        <h1 className="font-display text-3xl">That is not a wallet address</h1>
+        <p className="max-w-md text-sm text-ink-soft">
+          A room lives at the streamer&apos;s address: <code className="font-mono text-stamp">/r/0x…</code>
         </p>
-        <Link href="/" className="text-sm text-mon-soft hover:underline">
+        <Link href="/" className="text-sm underline underline-offset-4 hover:decoration-stamp">
           back home
         </Link>
       </main>

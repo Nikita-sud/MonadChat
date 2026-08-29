@@ -78,12 +78,15 @@ export const addressUrl = (a: string) => `${EXPLORER}/address/${a}`
 
 export const shortAddress = (a: Address) => `${a.slice(0, 6)}…${a.slice(-4)}`
 
-/** Deterministic nickname colour derived from the address, Twitch-style. */
+/**
+ * Deterministic nickname colour derived from the address.
+ * A small set of ink colours that read well on paper — not a neon rainbow.
+ */
+const INKS = ['#bf3a1e', '#1c6b4a', '#1d5a8a', '#8a5a1d', '#7d3b57', '#1d6b6b']
 export function colorFor(address: string): string {
-  const hues = [0, 25, 45, 90, 140, 170, 195, 220, 265, 290, 320, 345]
   let h = 0
   for (let i = 2; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) >>> 0
-  return `hsl(${hues[h % hues.length]} 85% 68%)`
+  return INKS[h % INKS.length]
 }
 
 /**

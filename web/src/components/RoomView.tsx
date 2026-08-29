@@ -17,26 +17,21 @@ export function RoomView({ streamer }: { streamer: Address }) {
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex shrink-0 items-center justify-between border-b border-edge px-4 py-2.5">
-        <Link href="/" className="flex items-center gap-2 text-sm font-bold tracking-tight">
-          <span className="text-mon">◆</span> MonadChat
-        </Link>
-        <div className="flex items-center gap-3 text-xs text-muted sm:gap-4">
+      <header className="flex shrink-0 items-baseline justify-between border-b border-ink px-4 py-2">
+        <Link href="/" className="font-display text-xl leading-none">MonadChat</Link>
+        <div className="flex items-baseline gap-4 font-mono text-[11px] text-ink-soft">
           <span className="hidden sm:inline">
             room{' '}
-            <a href={addressUrl(streamer)} target="_blank" rel="noreferrer" className="font-mono text-mon-soft hover:underline">
+            <a href={addressUrl(streamer)} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
               {shortAddress(streamer)}
             </a>
           </span>
           {room && room.price > 0n && (
             <span className="tabular-nums">
-              earned <b className="text-white">{fmtMon(room.earned)} MON</b>
+              earned <b className="text-money">{fmtMon(room.earned)} MON</b>
             </span>
           )}
-          <Link
-            href={`/overlay/${streamer}`}
-            className="hidden hover:text-white hover:underline md:inline"
-          >
+          <Link href={`/overlay/${streamer}`} className="hidden underline underline-offset-2 hover:text-ink md:inline">
             OBS overlay
           </Link>
         </div>
@@ -44,7 +39,7 @@ export function RoomView({ streamer }: { streamer: Address }) {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <main className="flex min-w-0 shrink-0 flex-col lg:flex-1 lg:shrink">
-          <div className="relative aspect-video w-full bg-black lg:aspect-auto lg:flex-1">
+          <div className="relative aspect-video w-full bg-ink lg:aspect-auto lg:flex-1">
             {embed ? (
               <iframe
                 src={embed}
@@ -53,12 +48,12 @@ export function RoomView({ streamer }: { streamer: Address }) {
                 className="absolute inset-0 h-full w-full"
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-panel to-ink">
-                <div className="flex items-center gap-2 rounded-full bg-live/15 px-3 py-1">
-                  <span className="live-dot h-2 w-2 rounded-full bg-live" />
-                  <span className="text-xs font-semibold tracking-widest text-live">LIVE</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="live-dot h-2 w-2 rounded-full bg-stamp" />
+                  <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-stamp">Live</span>
                 </div>
-                <p className="text-sm text-muted">
+                <p className="text-sm italic text-paper-2/70">
                   {loading
                     ? 'Reading the room from the contract…'
                     : room?.streamUrl
@@ -69,19 +64,19 @@ export function RoomView({ streamer }: { streamer: Address }) {
             )}
           </div>
 
-          <div className="hidden shrink-0 items-center justify-between gap-4 border-t border-edge px-4 py-3 sm:flex">
+          <div className="hidden shrink-0 items-baseline justify-between gap-4 border-t border-ink px-4 py-2.5 sm:flex">
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold">
+              <h1 className="truncate font-mono text-[12px] uppercase tracking-[0.12em]">
                 {room?.streamUrl || 'Stream without a source'}
               </h1>
-              <p className="truncate text-xs text-muted">
+              <p className="truncate text-[13px] italic text-ink-soft">
                 Every message is a Monad transaction. The streamer is paid instantly.
               </p>
             </div>
             {room && (
-              <div className="shrink-0 rounded-md border border-edge bg-panel px-3 py-1.5 text-right">
-                <div className="text-[10px] uppercase tracking-wide text-muted">price per word</div>
-                <div className="text-sm font-bold tabular-nums text-mon-soft">
+              <div className="shrink-0 text-right">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-soft">price per word</div>
+                <div className="font-mono text-sm font-bold text-money tabular-nums">
                   {room.price > 0n ? `${fmtMon(room.price)} MON` : 'closed'}
                 </div>
               </div>
@@ -89,11 +84,11 @@ export function RoomView({ streamer }: { streamer: Address }) {
           </div>
         </main>
 
-        <aside className="flex min-h-0 flex-1 flex-col lg:w-[340px] lg:flex-none">
+        <aside className="flex min-h-0 flex-1 flex-col lg:w-[360px] lg:flex-none">
           {room ? (
             <Chat streamer={streamer} price={room.price} />
           ) : (
-            <div className="flex h-full items-center justify-center border-l border-edge bg-panel text-xs text-muted">
+            <div className="flex h-full items-center justify-center border-l border-ink bg-paper font-mono text-[11px] text-ink-soft">
               loading room…
             </div>
           )}
