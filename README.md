@@ -8,7 +8,7 @@ second**. This is not a blockchain bolted onto a chat app: it is a product that 
 chain fast enough for a transaction to be a line of conversation.
 
 - **Live:** https://monadchat-rvfc1.vercel.app
-- **Contract:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadvision.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8) on Monad Testnet (chain 10143)
+- **Contract:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadscan.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8#code) on Monad Testnet (chain 10143)
 - **Measured latency:** 0.5–1.3 s from clicking send to the message appearing on chain
 
 ## What it does

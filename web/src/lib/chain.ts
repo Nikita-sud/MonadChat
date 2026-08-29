@@ -28,7 +28,8 @@ export const RPC_URLS = [
 ] as const
 
 export const RPC_WS = 'wss://testnet-rpc.monad.xyz'
-export const EXPLORER = 'https://testnet.monadvision.com'
+// Monadscan — the explorer where the contract is verified (green check + readable source)
+export const EXPLORER = 'https://testnet.monadscan.com'
 
 /**
  * Monad's public RPC throttles at 15-25 requests per second (the limit floats). So:

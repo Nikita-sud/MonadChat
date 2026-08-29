@@ -23,20 +23,20 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-16">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-8">
       <div className="font-display text-2xl">MonadChat</div>
 
-      <h1 className="mt-10 font-display text-6xl leading-[0.95] sm:text-7xl">
+      <h1 className="mt-6 font-display text-5xl leading-[0.95] sm:text-6xl">
         Chat where<br />words cost money
       </h1>
 
-      <p className="mt-8 max-w-xl text-lg leading-relaxed">
+      <p className="mt-5 max-w-xl text-[16px] leading-relaxed">
         Every message in a stream chat is a Monad transaction. To speak you have to pay, and the
         money lands in the streamer&apos;s wallet immediately — no platform in between. Spam gets
         expensive, attention gets honestly paid for.
       </p>
 
-      <div className="mt-12 border-t border-ink">
+      <div className="mt-7 border-t border-ink">
         <Fact k="latency" v="0.5 seconds from hitting send to confirmation on chain" />
         <Fact k="wallet" v="none needed — the app creates one in your browser" />
         <Fact k="anti-spam" v="Monad consensus rate-limits posting, not our server" />
@@ -44,15 +44,15 @@ export default function Home() {
 
       <Link
         href={`/r/${DEMO_ROOM}`}
-        className="mt-14 block bg-ink px-6 py-5 text-center transition-colors hover:bg-stamp"
+        className="mt-7 block bg-ink px-6 py-4 text-center transition-colors hover:bg-stamp"
       >
-        <span className="font-display text-3xl text-paper">Open the live demo →</span>
+        <span className="font-display text-2xl text-paper">Open the live demo →</span>
         <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.18em] text-paper/70">
           a real room · live lofi stream · every message lands on Monad
         </span>
       </Link>
 
-      <form onSubmit={go} className="mt-10">
+      <form onSubmit={go} className="mt-6">
         <label className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
           …or join a specific streamer&apos;s room
         </label>
@@ -70,7 +70,7 @@ export default function Home() {
         {error && <p className="mt-3 text-sm text-stamp">{error}</p>}
       </form>
 
-      <p className="mt-8 text-base">
+      <p className="mt-5 text-[15px]">
         Streaming?{' '}
         <Link href="/dashboard" className="underline decoration-ink-soft underline-offset-4 hover:decoration-stamp">
           Open your room
@@ -78,7 +78,7 @@ export default function Home() {
         — it takes one transaction.
       </p>
 
-      <footer className="mt-20 border-t border-edge pt-4 font-mono text-[11px] text-ink-soft">
+      <footer className="mt-8 border-t border-edge pt-3 font-mono text-[11px] text-ink-soft">
         Monad Testnet · contract{' '}
         <a href={addressUrl(CONTRACT_ADDRESS)} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
           {CONTRACT_ADDRESS}
@@ -90,7 +90,7 @@ export default function Home() {
 
 function Fact({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-baseline gap-3 border-b border-edge py-3">
+    <div className="flex items-baseline gap-3 border-b border-edge py-2.5">
       <span className="w-24 shrink-0 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">{k}</span>
       <span className="leader" />
       <span className="max-w-md text-right text-[15px]">{v}</span>
