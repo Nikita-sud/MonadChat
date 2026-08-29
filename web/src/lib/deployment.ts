@@ -1,5 +1,7 @@
 // СГЕНЕРИРОВАНО scripts/emit-frontend-abi.mjs — не редактировать руками.
 export const CONTRACT_ADDRESS = '0xba3c36b0e9c739669e4f738cef507c72c88b4be8' as const
+/** Комната деплоера — постоянная витрина с живым эфиром и затравочными сообщениями. */
+export const DEMO_ROOM = '0xe9e2d6B9d3289B465c4ad761f9771Fabd0Dfe82A' as const
 export const DEPLOY_BLOCK = 57899033n
 export const CHAIN_ID = 10143
 

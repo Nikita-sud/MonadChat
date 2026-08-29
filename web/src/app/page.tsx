@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { isAddress } from 'viem'
 import { CONTRACT_ADDRESS, addressUrl } from '@/lib/chain'
+import { DEMO_ROOM } from '@/lib/deployment'
 
 export default function Home() {
   const router = useRouter()
@@ -41,9 +42,19 @@ export default function Home() {
         <Fact k="anti-spam" v="Monad consensus rate-limits posting, not our server" />
       </div>
 
-      <form onSubmit={go} className="mt-14">
+      <Link
+        href={`/r/${DEMO_ROOM}`}
+        className="mt-14 block bg-ink px-6 py-5 text-center transition-colors hover:bg-stamp"
+      >
+        <span className="font-display text-3xl text-paper">Open the live demo →</span>
+        <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.18em] text-paper/70">
+          a real room · live lofi stream · every message lands on Monad
+        </span>
+      </Link>
+
+      <form onSubmit={go} className="mt-10">
         <label className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
-          Join a streamer&apos;s room
+          …or join a specific streamer&apos;s room
         </label>
         <div className="mt-3 flex items-end gap-4">
           <input
