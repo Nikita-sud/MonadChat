@@ -364,7 +364,18 @@ function matchOutbox(
 }
 
 export function humanError(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e)
+  // MetaMask and some RPCs reject with plain objects, not Error instances —
+  // String() on those prints "[object Object]" and hides the real cause.
+  const raw =
+    e instanceof Error
+      ? e.message
+      : typeof e === 'object' && e !== null
+        ? String(
+            (e as { shortMessage?: unknown }).shortMessage ??
+              (e as { message?: unknown }).message ??
+              JSON.stringify(e),
+          )
+        : String(e)
   if (/User rejected|user denied|ACTION_REJECTED/i.test(raw)) return 'Cancelled in MetaMask'
   if (/Underpaid/.test(raw)) return 'Paid less than the room price'
   if (/RoomClosed/.test(raw)) return 'Room is closed — the streamer has not set a price'
