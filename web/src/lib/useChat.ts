@@ -48,7 +48,10 @@ export type PendingMessage = {
 
 /** getLogs on Monad's public RPC is capped at 100 blocks per request. */
 const LOG_WINDOW = 100n
-const BACKFILL_WINDOWS = 20 // ~2000 blocks ≈ 13 minutes of history (all windows go out in one batch)
+// Every endpoint caps getLogs at 100 blocks (measured: ankr, thirdweb and the
+// official RPC all reject larger spans), so depth comes from the number of
+// windows, not their size. Batching folds them into a few HTTP calls.
+const BACKFILL_WINDOWS = 60 // ~6000 blocks ≈ 40 minutes of history
 
 let pendingCounter = 0
 

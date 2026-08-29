@@ -43,13 +43,35 @@ export function saveNickname(nick: string) {
   window.localStorage.setItem(NICK_KEY, nick.slice(0, 24))
 }
 
+const FAUCET_UPSTREAM = 'https://agents.devnads.com/v1/faucet'
+
+/**
+ * Tops the wallet up from the Monad faucet.
+ *
+ * Goes through our own route first, then falls back to calling the faucet
+ * directly — it does send CORS headers, so the app keeps working even when
+ * hosted somewhere without a server side.
+ */
 export async function requestFaucet(address: string): Promise<{ txHash: string; amount: string }> {
-  const res = await fetch('/api/faucet', {
+  try {
+    const res = await fetch('/api/faucet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address }),
+    })
+    const body = await res.json()
+    if (res.ok) return body
+    // 4xx from our own route means the faucet itself refused — do not retry it
+    if (res.status < 500) throw new Error(body.error ?? 'Faucet unavailable')
+  } catch (e) {
+    if (e instanceof Error && !/fetch|network|Failed/i.test(e.message)) throw e
+  }
+
+  const direct = await fetch(FAUCET_UPSTREAM, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address }),
+    body: JSON.stringify({ chainId: 10143, address }),
   })
-  const body = await res.json()
-  if (!res.ok) throw new Error(body.error ?? 'Faucet unavailable')
-  return body
+  if (!direct.ok) throw new Error(`Faucet responded ${direct.status}`)
+  return direct.json()
 }

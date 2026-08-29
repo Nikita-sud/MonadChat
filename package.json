@@ -5,7 +5,8 @@
   "scripts": {
     "compile": "node scripts/compile.mjs",
     "deploy": "node scripts/deploy.mjs",
-    "test:live": "node scripts/test-live.mjs"
+    "test:live": "node scripts/test-live.mjs",
+    "deploy:web": "bash scripts/deploy-web.sh"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
