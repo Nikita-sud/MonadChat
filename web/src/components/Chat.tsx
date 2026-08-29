@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatEther, parseEther, type Address } from 'viem'
 import { colorFor, publicClient, shortAddress, txUrl } from '@/lib/chain'
-import { connectMetaMask, hasMetaMask } from '@/lib/metamask'
+import { connectMetaMask, hasMetaMask, metaMaskClient } from '@/lib/metamask'
 import { useBurner } from '@/lib/useBurner'
-import { useChat, humanError, type SendIdentity } from '@/lib/useChat'
-import { requestFaucet } from '@/lib/wallet'
+import { useChat, humanError } from '@/lib/useChat'
 
 export function fmtMon(wei: bigint, digits = 3): string {
   const n = Number(formatEther(wei))
@@ -21,71 +20,24 @@ const clock = (ts: number) =>
 /** A message costs the room price plus roughly 0.013 MON of gas. */
 const GAS_HEADROOM = parseEther('0.02')
 
+/** One MetaMask confirmation buys this much popup-free chatting. */
+const TOPUP = parseEther('0.5')
+
 export function Chat({ streamer, price }: { streamer: Address; price: bigint }) {
   const { messages, pending, send, dismiss, live, loadingHistory } = useChat(streamer)
-  const burner = useBurner()
-  const { nickname, setNickname } = burner
+  const { account, balance, refreshBalance, nickname, setNickname, fund, funding, faucetError } =
+    useBurner()
   const [text, setText] = useState('')
   const [editingNick, setEditingNick] = useState(false)
 
-  // Who pays for the next message: the invisible browser wallet (default),
-  // or the viewer's own MetaMask — a real "superchat from my own account".
-  const [mm, setMm] = useState<Address | null>(null)
+  // MetaMask is a fuel pump here, not a signer: one confirmation moves MON into
+  // the session wallet, and every message keeps flowing popup-free from it.
   const [mmAvailable, setMmAvailable] = useState(false)
-  const [mmBalance, setMmBalance] = useState<bigint>(0n)
-  const [connecting, setConnecting] = useState(false)
-  const [identityError, setIdentityError] = useState<string | null>(null)
-  const [funding, setFunding] = useState(false)
-  const [faucetError, setFaucetError] = useState<string | null>(null)
+  const [toppingUp, setToppingUp] = useState(false)
+  const [topupNote, setTopupNote] = useState<string | null>(null)
+  const [topupError, setTopupError] = useState<string | null>(null)
 
   useEffect(() => setMmAvailable(hasMetaMask()), [])
-
-  useEffect(() => {
-    if (!mm) return
-    let cancelled = false
-    const tick = async () => {
-      try {
-        const b = await publicClient.getBalance({ address: mm })
-        if (!cancelled) setMmBalance(b)
-      } catch { /* next tick retries */ }
-    }
-    tick()
-    const t = setInterval(tick, 8000)
-    return () => { cancelled = true; clearInterval(t) }
-  }, [mm])
-
-  const account = burner.account
-  const activeAddress: Address | null = mm ?? account?.address ?? null
-  const balance = mm ? mmBalance : burner.balance
-  const identity: SendIdentity = mm ? { kind: 'metamask', address: mm } : { kind: 'burner' }
-
-  const connect = useCallback(async () => {
-    setConnecting(true)
-    setIdentityError(null)
-    try {
-      setMm(await connectMetaMask())
-    } catch (e) {
-      setIdentityError(humanError(e))
-    } finally {
-      setConnecting(false)
-    }
-  }, [])
-
-  const fund = useCallback(async () => {
-    if (!activeAddress) return
-    setFunding(true)
-    setFaucetError(null)
-    try {
-      const { txHash } = await requestFaucet(activeAddress)
-      await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
-      if (mm) setMmBalance(await publicClient.getBalance({ address: mm }))
-      else await burner.refreshBalance()
-    } catch (e) {
-      setFaucetError(e instanceof Error ? e.message : 'Faucet unavailable')
-    } finally {
-      setFunding(false)
-    }
-  }, [activeAddress, mm, burner])
 
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -103,6 +55,30 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
     pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
   }
 
+  const topUp = useCallback(async () => {
+    if (!account) return
+    setToppingUp(true)
+    setTopupError(null)
+    setTopupNote(null)
+    try {
+      const from = await connectMetaMask()
+      const hash = await metaMaskClient().sendTransaction({
+        account: from,
+        to: account.address,
+        value: TOPUP,
+        gas: 21000n, // plain transfer is exactly 21000, and Monad charges the limit
+      })
+      setTopupNote('confirming on chain…')
+      await publicClient.waitForTransactionReceipt({ hash })
+      await refreshBalance()
+      setTopupNote(`+${fmtMon(TOPUP)} MON from ${shortAddress(from)}`)
+    } catch (e) {
+      setTopupError(humanError(e))
+    } finally {
+      setToppingUp(false)
+    }
+  }, [account, refreshBalance])
+
   const canAfford = balance >= price + GAS_HEADROOM
   const roomOpen = price > 0n
   const disabled = !roomOpen || !canAfford || !text.trim()
@@ -112,7 +88,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
     const t = text.trim()
     if (!t || disabled) return
     setText('')
-    send(t, nickname.trim() || 'anon', price, identity)
+    send(t, nickname.trim() || 'anon', price)
   }
 
   return (
@@ -207,7 +183,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
               <button
                 onClick={() => setEditingNick(true)}
                 className="font-bold hover:underline"
-                style={{ color: activeAddress ? colorFor(activeAddress) : undefined }}
+                style={{ color: account ? colorFor(account.address) : undefined }}
                 title="change nickname"
               >
                 {nickname || '…'}
@@ -228,32 +204,19 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
           </div>
         </div>
         {mmAvailable && (
-          <div className="mt-1.5 flex items-baseline gap-2 text-ink-soft">
-            {mm ? (
-              <>
-                <span>
-                  paying via MetaMask <span className="tabular-nums">{shortAddress(mm)}</span>
-                </span>
-                <button
-                  onClick={() => setMm(null)}
-                  className="underline underline-offset-2 hover:text-ink"
-                >
-                  use browser wallet
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={connect}
-                disabled={connecting}
-                className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
-                title="each message will ask for a MetaMask confirmation, but it is sent from your own account"
-              >
-                {connecting ? 'connecting…' : 'donate from your own wallet (MetaMask) →'}
-              </button>
-            )}
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-ink-soft">
+            <button
+              onClick={topUp}
+              disabled={toppingUp}
+              className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
+              title="one MetaMask confirmation moves 0.5 MON into this session wallet — then keep chatting with zero popups"
+            >
+              {toppingUp ? 'waiting for MetaMask…' : `top up ${fmtMon(TOPUP)} MON from MetaMask →`}
+            </button>
+            {topupNote && <span className="text-money">{topupNote}</span>}
           </div>
         )}
-        {identityError && <p className="mt-1.5 text-stamp">{identityError}</p>}
+        {topupError && <p className="mt-1.5 text-stamp">{topupError}</p>}
         {faucetError && <p className="mt-1.5 text-stamp">faucet: {faucetError}</p>}
         {!canAfford && !faucetError && (
           <p className="mt-1.5 text-stamp">
@@ -284,7 +247,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
             disabled={disabled}
             className="bg-ink px-5 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-paper transition-colors hover:bg-stamp disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {mm ? <>Send · {fmtMon(price)} MON · MM</> : <>Send · {fmtMon(price)} MON</>}
+            Send · {fmtMon(price)} MON
           </button>
         </div>
       </form>
