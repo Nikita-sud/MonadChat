@@ -13,3 +13,6 @@ web/.next/
 
 # Vercel
 .vercel
+
+# Office lock files
+~$*
