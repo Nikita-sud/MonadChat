@@ -161,7 +161,10 @@ export function Dashboard() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-10">
-      <Link href="/" className="font-display text-2xl">MonadChat</Link>
+      <Link href="/" className="flex items-center gap-2.5 font-display text-2xl">
+        <span className="h-2.5 w-2.5 bg-stamp" aria-hidden />
+        MonadChat
+      </Link>
 
       <h1 className="mt-8 font-display text-5xl">Streamer&apos;s desk</h1>
       <p className="mt-4 max-w-lg text-[15px] leading-relaxed">

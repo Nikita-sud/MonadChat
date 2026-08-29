@@ -18,7 +18,10 @@ export function RoomView({ streamer }: { streamer: Address }) {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex shrink-0 items-baseline justify-between border-b border-ink px-4 py-2">
-        <Link href="/" className="font-display text-xl leading-none">MonadChat</Link>
+        <Link href="/" className="flex items-center gap-2 font-display text-xl leading-none">
+          <span className="h-2 w-2 bg-stamp" aria-hidden />
+          MonadChat
+        </Link>
         <div className="flex items-baseline gap-4 font-mono text-[11px] text-ink-soft">
           <span className="hidden sm:inline">
             room{' '}

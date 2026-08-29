@@ -24,10 +24,13 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-8">
-      <div className="font-display text-2xl">MonadChat</div>
+      <div className="flex items-center gap-2.5 font-display text-2xl">
+        <span className="h-2.5 w-2.5 bg-stamp" aria-hidden />
+        MonadChat
+      </div>
 
       <h1 className="mt-6 font-display text-5xl leading-[0.95] sm:text-6xl">
-        Chat where<br />words cost money
+        Chat where<br />words cost <span className="text-stamp">money</span>
       </h1>
 
       <p className="mt-5 max-w-xl text-[16px] leading-relaxed">

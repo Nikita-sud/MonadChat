@@ -279,30 +279,30 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
           </div>
         </div>
         {(mmAvailable || mainWallet) && (
-          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-ink-soft">
+          <div className="mt-2 flex gap-2">
             {mmAvailable && (
               <button
                 onClick={topUp}
                 disabled={toppingUp || reclaiming}
-                className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
+                className="flex-1 border border-ink px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-40"
                 title="one MetaMask confirmation moves 0.5 MON into this session wallet — then keep chatting with zero popups"
               >
-                {toppingUp ? 'waiting for MetaMask…' : `top up ${fmtMon(TOPUP)} MON from MetaMask →`}
+                {toppingUp ? 'waiting for MetaMask…' : `↑ top up ${fmtMon(TOPUP)} MON · MetaMask`}
               </button>
             )}
             {balance > RECLAIM_GAS_RESERVE + parseEther('0.01') && (
               <button
                 onClick={reclaim}
                 disabled={reclaiming || toppingUp}
-                className="underline underline-offset-2 hover:text-money disabled:opacity-40"
+                className="flex-1 border border-ink px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-40"
                 title="sends the session balance back to the wallet that funded it — no popup, the session wallet signs for itself"
               >
-                {reclaiming ? 'returning…' : '← return balance'}
+                {reclaiming ? 'returning…' : '↓ return balance'}
               </button>
             )}
-            {topupNote && <span className="text-money">{topupNote}</span>}
           </div>
         )}
+        {topupNote && <p className="mt-1.5 text-money">{topupNote}</p>}
         {topupError && <p className="mt-1.5 text-stamp">{topupError}</p>}
         {faucetError && <p className="mt-1.5 text-stamp">faucet: {faucetError}</p>}
         {!canAfford && !faucetError && (
