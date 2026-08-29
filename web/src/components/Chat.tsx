@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatEther, parseEther, type Address } from 'viem'
-import { colorFor, shortAddress, txUrl } from '@/lib/chain'
+import { colorFor, publicClient, shortAddress, txUrl } from '@/lib/chain'
+import { connectMetaMask, hasMetaMask } from '@/lib/metamask'
 import { useBurner } from '@/lib/useBurner'
-import { useChat } from '@/lib/useChat'
+import { useChat, humanError, type SendIdentity } from '@/lib/useChat'
+import { requestFaucet } from '@/lib/wallet'
 
 export function fmtMon(wei: bigint, digits = 3): string {
   const n = Number(formatEther(wei))
@@ -21,9 +23,69 @@ const GAS_HEADROOM = parseEther('0.02')
 
 export function Chat({ streamer, price }: { streamer: Address; price: bigint }) {
   const { messages, pending, send, dismiss, live, loadingHistory } = useChat(streamer)
-  const { account, balance, nickname, setNickname, fund, funding, faucetError } = useBurner()
+  const burner = useBurner()
+  const { nickname, setNickname } = burner
   const [text, setText] = useState('')
   const [editingNick, setEditingNick] = useState(false)
+
+  // Who pays for the next message: the invisible browser wallet (default),
+  // or the viewer's own MetaMask — a real "superchat from my own account".
+  const [mm, setMm] = useState<Address | null>(null)
+  const [mmAvailable, setMmAvailable] = useState(false)
+  const [mmBalance, setMmBalance] = useState<bigint>(0n)
+  const [connecting, setConnecting] = useState(false)
+  const [identityError, setIdentityError] = useState<string | null>(null)
+  const [funding, setFunding] = useState(false)
+  const [faucetError, setFaucetError] = useState<string | null>(null)
+
+  useEffect(() => setMmAvailable(hasMetaMask()), [])
+
+  useEffect(() => {
+    if (!mm) return
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const b = await publicClient.getBalance({ address: mm })
+        if (!cancelled) setMmBalance(b)
+      } catch { /* next tick retries */ }
+    }
+    tick()
+    const t = setInterval(tick, 8000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [mm])
+
+  const account = burner.account
+  const activeAddress: Address | null = mm ?? account?.address ?? null
+  const balance = mm ? mmBalance : burner.balance
+  const identity: SendIdentity = mm ? { kind: 'metamask', address: mm } : { kind: 'burner' }
+
+  const connect = useCallback(async () => {
+    setConnecting(true)
+    setIdentityError(null)
+    try {
+      setMm(await connectMetaMask())
+    } catch (e) {
+      setIdentityError(humanError(e))
+    } finally {
+      setConnecting(false)
+    }
+  }, [])
+
+  const fund = useCallback(async () => {
+    if (!activeAddress) return
+    setFunding(true)
+    setFaucetError(null)
+    try {
+      const { txHash } = await requestFaucet(activeAddress)
+      await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
+      if (mm) setMmBalance(await publicClient.getBalance({ address: mm }))
+      else await burner.refreshBalance()
+    } catch (e) {
+      setFaucetError(e instanceof Error ? e.message : 'Faucet unavailable')
+    } finally {
+      setFunding(false)
+    }
+  }, [activeAddress, mm, burner])
 
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -50,7 +112,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
     const t = text.trim()
     if (!t || disabled) return
     setText('')
-    send(t, nickname.trim() || 'anon', price)
+    send(t, nickname.trim() || 'anon', price, identity)
   }
 
   return (
@@ -145,7 +207,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
               <button
                 onClick={() => setEditingNick(true)}
                 className="font-bold hover:underline"
-                style={{ color: account ? colorFor(account.address) : undefined }}
+                style={{ color: activeAddress ? colorFor(activeAddress) : undefined }}
                 title="change nickname"
               >
                 {nickname || '…'}
@@ -165,6 +227,33 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
             </button>
           </div>
         </div>
+        {mmAvailable && (
+          <div className="mt-1.5 flex items-baseline gap-2 text-ink-soft">
+            {mm ? (
+              <>
+                <span>
+                  paying via MetaMask <span className="tabular-nums">{shortAddress(mm)}</span>
+                </span>
+                <button
+                  onClick={() => setMm(null)}
+                  className="underline underline-offset-2 hover:text-ink"
+                >
+                  use browser wallet
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={connect}
+                disabled={connecting}
+                className="underline underline-offset-2 hover:text-stamp disabled:opacity-40"
+                title="each message will ask for a MetaMask confirmation, but it is sent from your own account"
+              >
+                {connecting ? 'connecting…' : 'donate from your own wallet (MetaMask) →'}
+              </button>
+            )}
+          </div>
+        )}
+        {identityError && <p className="mt-1.5 text-stamp">{identityError}</p>}
         {faucetError && <p className="mt-1.5 text-stamp">faucet: {faucetError}</p>}
         {!canAfford && !faucetError && (
           <p className="mt-1.5 text-stamp">
@@ -195,7 +284,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
             disabled={disabled}
             className="bg-ink px-5 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-paper transition-colors hover:bg-stamp disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Send · {fmtMon(price)} MON
+            {mm ? <>Send · {fmtMon(price)} MON · MM</> : <>Send · {fmtMon(price)} MON</>}
           </button>
         </div>
       </form>

@@ -13,6 +13,7 @@ import {
   publicClient,
   wsClient,
 } from './chain'
+import { metaMaskClient } from './metamask'
 import { ensureBurner, walletFor } from './wallet'
 import { enqueue, resetNonce, takeNonce } from './sender'
 
@@ -52,6 +53,9 @@ const LOG_WINDOW = 100n
 // official RPC all reject larger spans), so depth comes from the number of
 // windows, not their size. Batching folds them into a few HTTP calls.
 const BACKFILL_WINDOWS = 60 // ~6000 blocks ≈ 40 minutes of history
+
+/** Who signs the message: the invisible browser wallet, or the viewer's own MetaMask. */
+export type SendIdentity = { kind: 'burner' } | { kind: 'metamask'; address: Address }
 
 let pendingCounter = 0
 
@@ -209,21 +213,63 @@ export function useChat(streamer: Address | undefined) {
   }, [streamer, ingest])
 
   const send = useCallback(
-    async (text: string, nickname: string, value: bigint) => {
+    async (
+      text: string,
+      nickname: string,
+      value: bigint,
+      identity: SendIdentity = { kind: 'burner' },
+    ) => {
       if (!streamer) return
-      const account = ensureBurner()
+      const account = identity.kind === 'burner' ? ensureBurner() : null
+      const sender = identity.kind === 'metamask' ? identity.address : account!.address
       const key = `pending-${++pendingCounter}`
       setPending((p) => [
         ...p,
-        { key, sender: account.address, nickname, text, amount: value, status: 'queued' },
+        { key, sender, nickname, text, amount: value, status: 'queued' },
       ])
 
-      outbox.current.set(key, { sender: account.address, text, startedAt: Date.now() })
+      outbox.current.set(key, { sender, text, startedAt: Date.now() })
 
       const patch = (u: Partial<PendingMessage>) =>
         setPending((p) => p.map((m) => (m.key === key ? { ...m, ...u } : m)))
 
       try {
+        if (identity.kind === 'metamask') {
+          // MetaMask signs in its own popup and manages its own nonce, and a human
+          // confirming is slower than the reserve-balance window anyway — so this
+          // path skips the burner queue and the local-nonce fast path entirely.
+          patch({ status: 'sending' })
+          const call = {
+            address: CONTRACT_ADDRESS,
+            abi: STREAM_CHAT_ABI,
+            functionName: 'sendMessage',
+            args: [streamer, nickname, text],
+            value,
+          } as const
+          const gas = gasMargin(
+            await publicClient.estimateContractGas({ ...call, account: identity.address }),
+          )
+          const hash = await metaMaskClient().writeContract({
+            ...call,
+            account: identity.address,
+            gas,
+          })
+          // The latency clock starts only after the human confirmed the popup —
+          // otherwise the badge would measure their reaction time, not the chain.
+          const entry = outbox.current.get(key)
+          if (entry) {
+            entry.startedAt = Date.now()
+            entry.txHash = hash.toLowerCase()
+          }
+          patch({ txHash: hash })
+          const receipt = await publicClient.waitForTransactionReceipt({ hash })
+          if (receipt.status !== 'success') {
+            throw new Error('Transaction reverted — most likely you posted too fast')
+          }
+          ingest(receipt.logs)
+          return
+        }
+
         await enqueue(async () => {
           patch({ status: 'sending' })
           const args = [streamer, nickname, text] as const
@@ -242,16 +288,16 @@ export function useChat(streamer: Address | undefined) {
               functionName: 'sendMessage',
               args,
               value,
-              account,
+              account: account!,
             }),
           )
           const nonce = await takeNonce(
-            () => publicClient.getTransactionCount({ address: account.address }),
-            account.address,
+            () => publicClient.getTransactionCount({ address: account!.address }),
+            account!.address,
           )
 
           // Sign locally, so the hash is known before the network sees it.
-          const serialized = await walletFor(account).signTransaction({
+          const serialized = await walletFor(account!).signTransaction({
             to: CONTRACT_ADDRESS,
             data,
             value,
@@ -319,6 +365,7 @@ function matchOutbox(
 
 export function humanError(e: unknown): string {
   const raw = e instanceof Error ? e.message : String(e)
+  if (/User rejected|user denied|ACTION_REJECTED/i.test(raw)) return 'Cancelled in MetaMask'
   if (/Underpaid/.test(raw)) return 'Paid less than the room price'
   if (/RoomClosed/.test(raw)) return 'Room is closed — the streamer has not set a price'
   if (/TooLong/.test(raw)) return 'Message is too long'
