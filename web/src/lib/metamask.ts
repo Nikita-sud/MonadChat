@@ -5,12 +5,48 @@ import { chain } from './chain'
 
 declare global {
   interface Window {
-    ethereum?: EIP1193Provider
+    ethereum?: EIP1193Provider & { providers?: (EIP1193Provider & Flags)[] } & Flags
   }
 }
 
+type Flags = { isMetaMask?: boolean; isPhantom?: boolean; isRabby?: boolean; isCoinbaseWallet?: boolean }
+
 export const hasMetaMask = () =>
   typeof window !== 'undefined' && typeof window.ethereum !== 'undefined'
+
+/**
+ * With several wallet extensions installed, window.ethereum belongs to whoever
+ * grabbed it last — often not MetaMask. A request then gets silently rejected
+ * by a wallet whose window never opens. EIP-6963 lets every wallet announce
+ * itself, so we can address MetaMask specifically.
+ */
+let cachedProvider: EIP1193Provider | null = null
+
+type Announcement = { info?: { rdns?: string; name?: string }; provider: EIP1193Provider }
+
+function discoverProvider(): Promise<EIP1193Provider | null> {
+  return new Promise((resolve) => {
+    const found: Announcement[] = []
+    const onAnnounce = (e: Event) => {
+      const d = (e as CustomEvent<Announcement>).detail
+      if (d?.provider) found.push(d)
+    }
+    window.addEventListener('eip6963:announceProvider', onAnnounce)
+    window.dispatchEvent(new Event('eip6963:requestProvider'))
+    setTimeout(() => {
+      window.removeEventListener('eip6963:announceProvider', onAnnounce)
+      const mm = found.find(
+        (d) => d.info?.rdns === 'io.metamask' || /metamask/i.test(d.info?.name ?? ''),
+      )
+      if (mm) return resolve(mm.provider)
+      // Legacy multi-inject: several providers stuffed into an array
+      const eth = window.ethereum
+      const fromArray = eth?.providers?.find((p) => p.isMetaMask && !p.isPhantom && !p.isRabby)
+      if (fromArray) return resolve(fromArray)
+      resolve(eth ?? null)
+    }, 200)
+  })
+}
 
 /** MetaMask rejects with plain objects ({ code, message }), not Error instances. */
 function mmMessage(e: unknown): string {
@@ -32,19 +68,23 @@ const mmCode = (e: unknown): number | undefined =>
 
 function rethrow(e: unknown): never {
   const code = mmCode(e)
-  if (code === 4001) throw new Error('Cancelled in MetaMask')
+  if (code === 4001)
+    throw new Error(
+      'Cancelled in the wallet — if you never saw a popup, click the MetaMask fox icon and retry',
+    )
   if (code === -32002)
     throw new Error('MetaMask is already showing a request — open its window and finish it')
   throw new Error(mmMessage(e))
 }
 
 /**
- * Connects the injected wallet and makes sure it is on Monad Testnet,
- * adding the network to the wallet first if it has never seen it.
+ * Connects MetaMask (found via EIP-6963 even when other wallets are installed)
+ * and makes sure it is on Monad Testnet, adding the network if needed.
  */
 export async function connectMetaMask(): Promise<Address> {
-  const eth = window.ethereum
+  const eth = await discoverProvider()
   if (!eth) throw new Error('MetaMask is not installed in this browser')
+  cachedProvider = eth
 
   let account: Address | undefined
   try {
@@ -64,9 +104,6 @@ export async function connectMetaMask(): Promise<Address> {
       })
     } catch (switchErr) {
       if (mmCode(switchErr) === 4001) rethrow(switchErr)
-      // 4902 means the wallet does not know the chain; some wallets answer with
-      // other codes for the same situation — offering to add it is the useful
-      // move either way.
       try {
         await eth.request({
           method: 'wallet_addEthereumChain',
@@ -89,6 +126,7 @@ export async function connectMetaMask(): Promise<Address> {
 }
 
 export function metaMaskClient() {
-  if (!window.ethereum) throw new Error('MetaMask is not installed in this browser')
-  return createWalletClient({ chain, transport: custom(window.ethereum) })
+  const eth = cachedProvider ?? window.ethereum
+  if (!eth) throw new Error('MetaMask is not installed in this browser')
+  return createWalletClient({ chain, transport: custom(eth) })
 }
