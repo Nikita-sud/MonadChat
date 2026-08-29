@@ -6,8 +6,8 @@ import { publicClient } from './chain'
 import { ensureBurner, loadNickname, requestFaucet, saveNickname } from './wallet'
 
 /**
- * Кошелёк, который приложение создаёт само. Зритель не ставит расширений:
- * зашёл на страницу — ключ уже сгенерирован, нажал «Получить MON» — может писать.
+ * The wallet the app creates for you. No extensions to install: open the page and
+ * the key already exists, hit "+1 MON" and you can start posting.
  */
 export function useBurner(pollMs = 8000) {
   const [account, setAccount] = useState<PrivateKeyAccount | null>(null)
@@ -52,7 +52,7 @@ export function useBurner(pollMs = 8000) {
       await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` })
       await refreshBalance()
     } catch (e) {
-      setFaucetError(e instanceof Error ? e.message : 'Кран недоступен')
+      setFaucetError(e instanceof Error ? e.message : 'Faucet unavailable')
     } finally {
       setFunding(false)
     }

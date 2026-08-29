@@ -21,27 +21,30 @@ export function RoomView({ streamer }: { streamer: Address }) {
         <Link href="/" className="flex items-center gap-2 text-sm font-bold tracking-tight">
           <span className="text-mon">◆</span> MonadChat
         </Link>
-        <div className="flex items-center gap-4 text-xs text-muted">
-          <span>
-            комната{' '}
+        <div className="flex items-center gap-3 text-xs text-muted sm:gap-4">
+          <span className="hidden sm:inline">
+            room{' '}
             <a href={addressUrl(streamer)} target="_blank" rel="noreferrer" className="font-mono text-mon-soft hover:underline">
               {shortAddress(streamer)}
             </a>
           </span>
           {room && room.price > 0n && (
             <span className="tabular-nums">
-              заработано <b className="text-white">{fmtMon(room.earned)} MON</b>
+              earned <b className="text-white">{fmtMon(room.earned)} MON</b>
             </span>
           )}
-          <Link href={`/overlay/${streamer}`} className="hover:text-white hover:underline">
-            оверлей для OBS
+          <Link
+            href={`/overlay/${streamer}`}
+            className="hidden hover:text-white hover:underline md:inline"
+          >
+            OBS overlay
           </Link>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col">
-          <div className="relative flex-1 bg-black">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <main className="flex min-w-0 shrink-0 flex-col lg:flex-1 lg:shrink">
+          <div className="relative aspect-video w-full bg-black lg:aspect-auto lg:flex-1">
             {embed ? (
               <iframe
                 src={embed}
@@ -57,41 +60,41 @@ export function RoomView({ streamer }: { streamer: Address }) {
                 </div>
                 <p className="text-sm text-muted">
                   {loading
-                    ? 'Читаю комнату из контракта…'
+                    ? 'Reading the room from the contract…'
                     : room?.streamUrl
-                      ? `Не разобрал источник: ${room.streamUrl}`
-                      : 'Стример не указал, где он вещает'}
+                      ? `Could not parse the source: ${room.streamUrl}`
+                      : 'The streamer has not set a source yet'}
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-4 border-t border-edge px-4 py-3">
+          <div className="hidden shrink-0 items-center justify-between gap-4 border-t border-edge px-4 py-3 sm:flex">
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold">
-                {room?.streamUrl || 'Стрим без источника'}
+                {room?.streamUrl || 'Stream without a source'}
               </h1>
               <p className="truncate text-xs text-muted">
-                Каждое сообщение в чате — транзакция в Monad. Деньги уходят стримеру сразу.
+                Every message is a Monad transaction. The streamer is paid instantly.
               </p>
             </div>
             {room && (
               <div className="shrink-0 rounded-md border border-edge bg-panel px-3 py-1.5 text-right">
-                <div className="text-[10px] uppercase tracking-wide text-muted">цена слова</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted">price per word</div>
                 <div className="text-sm font-bold tabular-nums text-mon-soft">
-                  {room.price > 0n ? `${fmtMon(room.price)} MON` : 'закрыто'}
+                  {room.price > 0n ? `${fmtMon(room.price)} MON` : 'closed'}
                 </div>
               </div>
             )}
           </div>
         </main>
 
-        <aside className="w-[340px] shrink-0">
+        <aside className="flex min-h-0 flex-1 flex-col lg:w-[340px] lg:flex-none">
           {room ? (
             <Chat streamer={streamer} price={room.price} />
           ) : (
             <div className="flex h-full items-center justify-center border-l border-edge bg-panel text-xs text-muted">
-              загружаю комнату…
+              loading room…
             </div>
           )}
         </aside>

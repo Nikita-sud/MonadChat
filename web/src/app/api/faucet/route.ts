@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server'
 import { isAddress } from 'viem'
 
 /**
- * Прокси к крану Monad. Ходим с сервера, а не из браузера:
- * у крана нет CORS-заголовков для наших origin.
+ * Proxy to the Monad faucet. Called server-side rather than from the browser:
+ * the faucet sends no CORS headers for our origins.
  */
 export async function POST(req: Request) {
   let address: unknown
   try {
     ;({ address } = await req.json())
   } catch {
-    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+    return NextResponse.json({ error: 'Malformed JSON' }, { status: 400 })
   }
 
   if (typeof address !== 'string' || !isAddress(address)) {
-    return NextResponse.json({ error: 'Некорректный адрес' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid address' }, { status: 400 })
   }
 
   try {
@@ -25,12 +25,12 @@ export async function POST(req: Request) {
     })
     const text = await res.text()
     if (!res.ok) {
-      return NextResponse.json({ error: `Кран ответил ${res.status}: ${text.slice(0, 200)}` }, { status: 502 })
+      return NextResponse.json({ error: `Faucet responded ${res.status}: ${text.slice(0, 200)}` }, { status: 502 })
     }
     return NextResponse.json(JSON.parse(text))
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Кран недоступен' },
+      { error: e instanceof Error ? e.message : 'Faucet unavailable' },
       { status: 502 },
     )
   }

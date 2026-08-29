@@ -1,15 +1,15 @@
 /**
- * Последовательная очередь отправки с паузой между транзакциями.
+ * Serial send queue with a gap between transactions.
  *
- * Почему она нужна: на Monad действует reserve balance = 10 MON. У аккаунта с
- * балансом меньше 10 MON проходит только одна тратящая транзакция раз в k=3
- * блока — остальные РЕВЕРЗЯТСЯ, при этом всё равно платя газ. Проверено на
- * тестнете: из пяти отправленных подряд прошла одна, четыре сгорели впустую.
+ * Why it exists: Monad enforces a reserve balance of 10 MON. An account holding
+ * less than that lands only one spending transaction every k=3 blocks — the rest
+ * REVERT while still paying gas. Measured on testnet: of five sent back to back,
+ * one succeeded and four burned gas for nothing.
  *
- * Поэтому сообщения не летят параллельно, а ждут своей очереди. Для человека,
- * который печатает, это незаметно, зато ни одно сообщение не пропадает.
+ * So messages queue instead of racing. A human typing never notices the delay,
+ * and no message is ever lost.
  */
-const MIN_GAP_MS = 1700 // 4 блока по ~400 мс
+const MIN_GAP_MS = 1700 // 4 blocks at ~400 ms
 
 let tail: Promise<unknown> = Promise.resolve()
 let lastFinishedAt = 0
@@ -32,4 +32,32 @@ export function enqueue<T>(task: () => Promise<T>): Promise<T> {
   })
   tail = run.catch(() => undefined)
   return run as Promise<T>
+}
+
+/**
+ * Local nonce tracking.
+ *
+ * viem's writeContract asks the RPC for the nonce, the fees and the chain id on
+ * every call — three extra round trips that added ~1.5 s before the transaction
+ * was even broadcast. Sends are serialised by the queue above, so we can hold
+ * the nonce ourselves and only ask the network once.
+ */
+let nextNonce: number | null = null
+let nonceOwner: string | null = null
+
+export async function takeNonce(
+  fetchNonce: () => Promise<number>,
+  address: string,
+): Promise<number> {
+  if (nextNonce === null || nonceOwner !== address) {
+    nextNonce = await fetchNonce()
+    nonceOwner = address
+  }
+  return nextNonce++
+}
+
+/** Call after a failed send: the chain may not have consumed our nonce. */
+export function resetNonce() {
+  nextNonce = null
+  nonceOwner = null
 }

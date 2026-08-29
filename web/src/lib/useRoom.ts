@@ -6,7 +6,7 @@ import { CONTRACT_ADDRESS, STREAM_CHAT_ABI, publicClient } from './chain'
 
 export type Room = { price: bigint; streamUrl: string; earned: bigint }
 
-/** Читает комнату стримера: цену за сообщение, где он стримит и сколько заработал. */
+/** Reads a streamer's room: price per message, where they stream, lifetime earnings. */
 export function useRoom(streamer: Address | undefined, pollMs = 10_000) {
   const [room, setRoom] = useState<Room | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,16 +31,19 @@ export function useRoom(streamer: Address | undefined, pollMs = 10_000) {
     }
   }, [streamer])
 
+  // Until the first successful read we retry quickly: a single throttled RPC
+  // call must not leave the room stuck on "loading" for ten seconds.
+  const loaded = room !== null
   useEffect(() => {
     refresh()
-    const t = setInterval(refresh, pollMs)
+    const t = setInterval(refresh, loaded ? pollMs : 2000)
     return () => clearInterval(t)
-  }, [refresh, pollMs])
+  }, [refresh, pollMs, loaded])
 
   return { room, loading, refresh }
 }
 
-/** "twitch:xqc" | "youtube:VIDEO_ID" | "kick:channel" → URL для iframe */
+/** "twitch:xqc" | "youtube:VIDEO_ID" | "kick:channel" → iframe URL */
 export function embedUrl(streamUrl: string, host: string): string | null {
   const [kind, ...rest] = streamUrl.split(':')
   const id = rest.join(':').trim()

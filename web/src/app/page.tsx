@@ -15,7 +15,7 @@ export default function Home() {
     e.preventDefault()
     const v = addr.trim()
     if (!isAddress(v)) {
-      setError('Это не адрес кошелька — нужен формат 0x…')
+      setError('That is not a wallet address — it should look like 0x…')
       return
     }
     router.push(`/r/${v}`)
@@ -28,47 +28,47 @@ export default function Home() {
       </div>
 
       <h1 className="mt-8 text-4xl font-bold leading-tight sm:text-5xl">
-        Чат, где слово<br />стоит денег
+        Chat where<br />words cost money
       </h1>
 
       <p className="mt-5 max-w-xl text-base leading-relaxed text-muted">
-        Каждое сообщение в чате стрима — транзакция в Monad. Чтобы написать, нужно заплатить,
-        и деньги уходят стримеру сразу, без платформы-посредника. Спам становится дорогим,
-        а внимание — честно оплаченным.
+        Every message in a stream chat is a Monad transaction. To speak you have to pay, and the
+        money lands in the streamer&apos;s wallet immediately — no platform in between. Spam gets
+        expensive, attention gets honestly paid for.
       </p>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <Fact title="0.5 секунды" body="от нажатия «отправить» до подтверждения в блокчейне" />
-        <Fact title="Без кошелька" body="приложение создаёт его само, расширения не нужны" />
-        <Fact title="Анти-спам сети" body="ограничение частоты обеспечивает консенсус Monad, а не наш сервер" />
+        <Fact title="0.5 seconds" body="from hitting send to confirmation on chain" />
+        <Fact title="No wallet needed" body="the app creates one in your browser, no extensions" />
+        <Fact title="Consensus anti-spam" body="Monad itself rate-limits posting, not our server" />
       </div>
 
       <form onSubmit={go} className="mt-10">
-        <label className="block text-sm font-medium">Зайти в комнату стримера</label>
+        <label className="block text-sm font-medium">Join a streamer&apos;s room</label>
         <div className="mt-2 flex gap-2">
           <input
             value={addr}
             onChange={(e) => { setAddr(e.target.value); setError(null) }}
-            placeholder="0x… адрес стримера"
+            placeholder="0x… streamer address"
             className="min-w-0 flex-1 rounded-md border border-edge bg-panel px-3 py-2.5 font-mono text-sm outline-none placeholder:font-sans placeholder:text-muted focus:border-mon"
           />
           <button className="shrink-0 rounded-md bg-mon px-5 py-2.5 text-sm font-semibold text-white hover:bg-mon-soft">
-            Войти
+            Join
           </button>
         </div>
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       </form>
 
       <p className="mt-6 text-sm text-muted">
-        Стример?{' '}
+        Streaming?{' '}
         <Link href="/dashboard" className="font-medium text-mon-soft hover:underline">
-          Открой свою комнату
+          Open your room
         </Link>{' '}
-        — это одна транзакция.
+        — it takes one transaction.
       </p>
 
       <footer className="mt-16 border-t border-edge pt-5 text-xs text-muted">
-        Monad Testnet · контракт{' '}
+        Monad Testnet · contract{' '}
         <a
           href={addressUrl(CONTRACT_ADDRESS)}
           target="_blank"

@@ -6,7 +6,7 @@ import { colorFor } from '@/lib/chain'
 import { useChat } from '@/lib/useChat'
 import { fmtMon } from './Chat'
 
-/** Сколько сообщение висит поверх стрима */
+/** How long a message stays on top of the stream */
 const LIFETIME_MS = 25_000
 const MAX_VISIBLE = 6
 
@@ -14,7 +14,7 @@ export function Overlay({ streamer }: { streamer: Address }) {
   const { messages } = useChat(streamer)
   const [now, setNow] = useState(() => Date.now())
 
-  // OBS Browser Source: фон должен быть прозрачным, иначе перекроет видео
+  // OBS Browser Source needs a transparent background, otherwise it covers the video
   useEffect(() => {
     const prev = document.body.style.background
     document.body.style.background = 'transparent'

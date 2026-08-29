@@ -10,3 +10,6 @@ web/.next/
 
 # TypeScript
 *.tsbuildinfo
+
+# Vercel
+.vercel

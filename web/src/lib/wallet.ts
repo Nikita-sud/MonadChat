@@ -1,17 +1,17 @@
-import { createWalletClient, http, type PrivateKeyAccount } from 'viem'
+import { createWalletClient, type PrivateKeyAccount } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { chain, RPC_HTTP } from './chain'
+import { chain, rpcTransport } from './chain'
 
 const PK_KEY = 'monadchat.pk.v1'
 const NICK_KEY = 'monadchat.nick.v1'
 
 /**
- * Кошелёк живёт в браузере: приватный ключ в localStorage.
- * Ни расширений, ни seed-фраз — открыл ссылку и можешь платить за сообщения.
- * Это кошелёк на один вечер: реальные средства сюда класть нельзя.
+ * The wallet lives in the browser: private key in localStorage.
+ * No extensions, no seed phrases — open the link and you can pay for messages.
+ * This is a throwaway wallet: never put real funds in it.
  */
 export function ensureBurner(): PrivateKeyAccount {
-  if (typeof window === 'undefined') throw new Error('ensureBurner доступен только в браузере')
+  if (typeof window === 'undefined') throw new Error('ensureBurner is browser-only')
   let pk = window.localStorage.getItem(PK_KEY)
   if (!pk || !/^0x[0-9a-fA-F]{64}$/.test(pk)) {
     pk = generatePrivateKey()
@@ -31,7 +31,7 @@ export function resetBurner(): PrivateKeyAccount {
 }
 
 export function walletFor(account: PrivateKeyAccount) {
-  return createWalletClient({ account, chain, transport: http(RPC_HTTP) })
+  return createWalletClient({ account, chain, transport: rpcTransport })
 }
 
 export function loadNickname(): string {
@@ -50,6 +50,6 @@ export async function requestFaucet(address: string): Promise<{ txHash: string; 
     body: JSON.stringify({ address }),
   })
   const body = await res.json()
-  if (!res.ok) throw new Error(body.error ?? 'Кран недоступен')
+  if (!res.ok) throw new Error(body.error ?? 'Faucet unavailable')
   return body
 }

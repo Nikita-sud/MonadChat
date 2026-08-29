@@ -13,19 +13,10 @@ export function fmtMon(wei: bigint, digits = 3): string {
   return n.toFixed(digits).replace(/\.?0+$/, '')
 }
 
-/** 1 сообщение / 2 сообщения / 5 сообщений */
-export function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return one
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few
-  return many
-}
-
 const clock = (ts: number) =>
-  new Date(ts * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  new Date(ts * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-/** Запас на газ: сообщение стоит цену комнаты плюс ~0.013 MON газа. */
+/** A message costs the room price plus roughly 0.013 MON of gas. */
 const GAS_HEADROOM = parseEther('0.02')
 
 export function Chat({ streamer, price }: { streamer: Address; price: bigint }) {
@@ -59,31 +50,31 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
     const t = text.trim()
     if (!t || disabled) return
     setText('')
-    send(t, nickname.trim() || 'аноним', price)
+    send(t, nickname.trim() || 'anon', price)
   }
 
   return (
-    <div className="flex h-full flex-col border-l border-edge bg-panel">
+    <div className="flex min-h-0 flex-1 flex-col border-t border-edge bg-panel lg:border-l lg:border-t-0">
       <header className="flex items-center justify-between border-b border-edge px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold tracking-wide">ЧАТ</span>
+          <span className="text-sm font-semibold tracking-wide">CHAT</span>
           <span
             className={`live-dot h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400' : 'bg-muted'}`}
-            title={live ? 'подписка на события активна' : 'нет соединения'}
+            title={live ? 'live subscription active' : 'disconnected'}
           />
         </div>
         <span className="text-xs text-muted tabular-nums">
-          {messages.length} {plural(messages.length, 'сообщение', 'сообщения', 'сообщений')}
+          {messages.length} {messages.length === 1 ? 'message' : 'messages'}
         </span>
       </header>
 
       <div ref={scroller} onScroll={onScroll} className="chat-scroll flex-1 overflow-y-auto py-2">
         {loadingHistory && (
-          <p className="px-4 py-2 text-xs text-muted">Загружаю историю из блокчейна…</p>
+          <p className="px-4 py-2 text-xs text-muted">Loading history from the chain…</p>
         )}
         {!loadingHistory && rows.length === 0 && (
           <p className="px-4 py-2 text-xs text-muted">
-            Пока тихо. Первое сообщение стоит {fmtMon(price)} MON — напиши его.
+            Quiet in here. The first message costs {fmtMon(price)} MON — go write it.
           </p>
         )}
 
@@ -100,15 +91,15 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
               </span>
               <span className="text-muted">: </span>
               <span className="break-words">{m.text}</span>{' '}
-              {m.status === 'queued' && <span className="text-[11px] text-muted">· в очереди</span>}
+              {m.status === 'queued' && <span className="text-[11px] text-muted">· queued</span>}
               {m.status === 'sending' && (
-                <span className="text-[11px] text-mon-soft">· отправляю…</span>
+                <span className="text-[11px] text-mon-soft">· sending…</span>
               )}
               {m.status === 'failed' && (
                 <span className="text-[11px] text-red-400">
                   · {m.error}{' '}
                   <button onClick={() => dismiss(m.key)} className="underline hover:no-underline">
-                    убрать
+                    dismiss
                   </button>
                 </span>
               )}
@@ -126,10 +117,10 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
                 target="_blank"
                 rel="noreferrer"
                 className="ml-2 rounded bg-mon/15 px-1.5 py-0.5 text-[10px] font-medium text-mon-soft tabular-nums hover:bg-mon/25"
-                title="открыть транзакцию в эксплорере"
+                title="open transaction in the explorer"
               >
                 {fmtMon(m.amount)} MON
-                {m.latencyMs !== undefined && ` · ⛓ ${(m.latencyMs / 1000).toFixed(2)} с`}
+                {m.latencyMs !== undefined && ` · ⛓ ${(m.latencyMs / 1000).toFixed(2)}s`}
               </a>
             </div>
           ),
@@ -139,7 +130,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
       <div className="border-t border-edge px-3 py-2 text-[11px]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="text-muted">ты:</span>
+            <span className="text-muted">you:</span>
             {editingNick ? (
               <input
                 autoFocus
@@ -155,7 +146,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
                 onClick={() => setEditingNick(true)}
                 className="font-semibold hover:underline"
                 style={{ color: account ? colorFor(account.address) : undefined }}
-                title="сменить ник"
+                title="change nickname"
               >
                 {nickname || '…'}
               </button>
@@ -170,14 +161,14 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
               disabled={funding}
               className="rounded bg-mon px-2 py-1 font-medium text-white hover:bg-mon-soft disabled:opacity-50"
             >
-              {funding ? 'наливаю…' : '+1 MON'}
+              {funding ? 'funding…' : '+1 MON'}
             </button>
           </div>
         </div>
-        {faucetError && <p className="mt-1 text-red-400">Кран: {faucetError}</p>}
+        {faucetError && <p className="mt-1 text-red-400">Faucet: {faucetError}</p>}
         {!canAfford && !faucetError && (
           <p className="mt-1 text-amber-400">
-            Не хватает на сообщение — нажми «+1 MON», кран нальёт бесплатно.
+            Not enough to post — hit “+1 MON”, the faucet tops you up for free.
           </p>
         )}
       </div>
@@ -193,7 +184,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
               submit(e)
             }
           }}
-          placeholder={roomOpen ? 'Написать сообщение…' : 'Комната закрыта'}
+          placeholder={roomOpen ? 'Send a message…' : 'Room is closed'}
           disabled={!roomOpen}
           className="w-full rounded-md border border-edge bg-panel-2 px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-mon disabled:opacity-50"
         />
@@ -204,7 +195,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
             disabled={disabled}
             className="rounded-md bg-mon px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-mon-soft disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Отправить · {fmtMon(price)} MON
+            Send · {fmtMon(price)} MON
           </button>
         </div>
       </form>

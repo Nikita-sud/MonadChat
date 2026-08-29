@@ -1,77 +1,82 @@
 # MonadChat
 
-**Чат для стримов, где право голоса стоит денег.** Каждое сообщение — транзакция в Monad:
-чтобы написать, нужно заплатить, и деньги уходят стримеру мгновенно, без платформы-посредника.
+**Stream chat where words cost money.** Every message is a Monad transaction: to speak you pay,
+and the money lands in the streamer's wallet immediately — no platform in between.
 
-Блок в Monad — около 400 мс, поэтому сообщение появляется в чате за **полсекунды** после
-нажатия «отправить». На Ethereum такой продукт физически не существует: это не «блокчейн,
-прикрученный к чату», а витрина сети, в которой транзакция может быть репликой в диалоге.
+A Monad block takes about 300–400 ms, so a paid message shows up in chat in **well under a
+second**. This is not a blockchain bolted onto a chat app: it is a product that only exists on a
+chain fast enough for a transaction to be a line of conversation.
 
-- **Контракт:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadvision.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8) · Monad Testnet (chainId 10143)
-- **Замеренная задержка:** 0.47–0.56 с от клика до подтверждения в цепочке
+- **Live:** https://monadchat-rvfc1.vercel.app
+- **Contract:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadvision.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8) on Monad Testnet (chain 10143)
+- **Measured latency:** 0.5–1.3 s from clicking send to the message appearing on chain
 
-## Что делает продукт
+## What it does
 
 | | |
 |---|---|
-| **Платный чат** | Стример задаёт цену слова. Заплатил — написал. 100 % суммы уходит ему сразу. |
-| **Анти-спам от сети** | Reserve balance Monad не даёт одному кошельку слать чаще одного сообщения в ~1.2 с. Это правило консенсуса, а не наш сервер, и обойти его нельзя. |
-| **Кошелёк не нужен** | Приложение создаёт его само в браузере, а встроенный кран наливает MON по кнопке. Зритель начинает писать за десять секунд, без расширений и seed-фраз. |
-| **Оверлей для OBS** | Прозрачная страница, которая кладётся поверх видео: оплаченные сообщения всплывают прямо на стриме. |
-| **Поверх Twitch, а не вместо** | Стример продолжает вещать где вещал — мы даём платный чат-слой поверх Twitch, YouTube или Kick. |
+| **Paid chat** | The streamer sets the price of a word. Pay, and you can post. 100% goes straight to them. |
+| **Anti-spam from the network** | Monad's reserve balance rule stops any single wallet posting more than once per ~1.2 s. That is consensus, not our server, and a bot cannot get around it. |
+| **No wallet required** | The app creates one in the browser and the built-in faucet tops it up with one click. A viewer is posting ten seconds after opening the link — no extension, no seed phrase. |
+| **OBS overlay** | A transparent page that sits on top of the video, so paid messages appear on the stream itself. |
+| **On top of Twitch, not instead of it** | The streamer keeps streaming wherever they already stream; we add the paid chat layer. |
 
-## Как устроено
+## How it works
 
 ```
-Зритель (кошелёк в браузере)
+Viewer (wallet created in the browser)
    │  sendMessage{value}
    ▼
-StreamChat.sol ──── MON ───▶ кошелёк стримера (сразу, push)
+StreamChat.sol ──── MON ───▶ streamer's wallet (immediately, push)
    │
    └── emit MessageSent(streamer, sender, amount, nickname, text, ts, index)
               │
       ┌───────┴────────┐
       ▼                ▼
-  /r/<адрес>      /overlay/<адрес>
-  чат зрителя     оверлей в OBS
+  /r/<address>    /overlay/<address>
+  viewer chat     OBS overlay
 ```
 
-Ни бэкенда, ни индексера, ни базы данных: текст сообщений живёт в событиях контракта,
-фронт читает их напрямую — историю через `eth_getLogs`, живую ленту через подписку по WebSocket.
+No backend, no indexer, no database. Message text lives in contract events; the frontend reads
+history with `eth_getLogs` and the live feed over a WebSocket subscription.
 
-## Запуск
+## Running it
 
 ```bash
 npm install && npm --prefix web install
 npm --prefix web run dev
 ```
 
-Открыть `http://localhost:3000/dashboard`, нажать «+1 MON», открыть комнату — и раздать
-ссылку на `/r/<свой адрес>`.
+Open `http://localhost:3000/dashboard`, click “+1 MON”, open your room, and share the
+`/r/<your address>` link.
 
-Пересобрать и передеплоить контракт (нужен `DEPLOYER_PRIVATE_KEY` в `.env.local`):
+Rebuild and redeploy the contract (needs `DEPLOYER_PRIVATE_KEY` in `.env.local`):
 
 ```bash
 npm run compile && npm run deploy && npm run test:live
 ```
 
-`deploy` сам обновляет адрес и ABI во фронте (`web/src/lib/deployment.ts`).
+`deploy` writes the new address and ABI into the frontend automatically.
 
-## Структура
+## Layout
 
-| Путь | Что там |
+| Path | Contents |
 |---|---|
-| `contracts/StreamChat.sol` | Контракт целиком, 67 строк |
-| `scripts/` | Компиляция (solc), деплой и интеграционные тесты на живом тестнете |
-| `web/src/lib/` | Клиенты сети, кошелёк, очередь отправки, чтение событий |
-| `web/src/components/` | Чат, комната, кабинет стримера, оверлей |
-| `docs/09-measured-facts.md` | **Замеры на живой сети** — газ, лимиты, reserve balance |
+| `contracts/StreamChat.sol` | The whole contract, 67 lines |
+| `scripts/` | Compile (solc), deploy, and integration tests that run against live testnet |
+| `web/src/lib/` | Chain clients, wallet, send queue, event reading |
+| `web/src/components/` | Chat, room, streamer dashboard, overlay |
+| `docs/09-measured-facts.md` | **Numbers measured on the live network** — gas, limits, reserve balance |
 
-## Документация
+## Three things Monad does differently, and what they cost us
 
-`docs/09-measured-facts.md` содержит проверенные на сети цифры и в спорных местах
-имеет приоритет над остальными файлами. Ключевое, что стоит знать до того, как трогать код:
+1. **Gas is charged on `gas_limit`, not on usage, with no refund.** A padded gas limit is money
+   out of the viewer's pocket, so estimates get a 7.5% buffer rather than the usual 2x.
+2. **A wallet holding less than 10 MON lands one spending transaction every ~1.2 s; the rest
+   revert and still pay gas.** We measured it: of five sent back to back, one succeeded and four
+   burned gas. Hence the serial send queue — and the anti-spam story above.
+3. **The public RPC is shared by every builder on the network.** On hackathon day it rejected two
+   thirds of our calls, which broke both history loading and the WebSocket handshake. The app now
+   fails over across four independent endpoints, ordered by measured reliability.
 
-1. Газ списывается по `gas_limit`, возврата нет — буфер к оценке 7.5 %, не ×2.
-2. Кошелёк с балансом < 10 MON шлёт одну тратящую транзакцию раз в ~1.2 с, остальные ревертятся, но газ платят.
-3. Публичный RPC ограничен 25 запросами в секунду — параллельные вызовы обязаны батчиться.
+Details and raw measurements: `docs/09-measured-facts.md`.

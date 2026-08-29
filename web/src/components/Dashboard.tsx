@@ -19,9 +19,9 @@ import { walletFor } from '@/lib/wallet'
 import { fmtMon } from './Chat'
 
 const SOURCES = [
-  { kind: 'twitch', label: 'Twitch', hint: 'ник канала, например monad' },
-  { kind: 'youtube', label: 'YouTube', hint: 'ID видео из ссылки watch?v=…' },
-  { kind: 'kick', label: 'Kick', hint: 'ник канала' },
+  { kind: 'twitch', label: 'Twitch', hint: 'channel name, e.g. monad' },
+  { kind: 'youtube', label: 'YouTube', hint: 'video ID from the watch?v= link' },
+  { kind: 'kick', label: 'Kick', hint: 'channel name' },
 ] as const
 
 export function Dashboard() {
@@ -35,7 +35,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [lastTx, setLastTx] = useState<string | null>(null)
 
-  // подставляем текущие настройки комнаты, если она уже открыта
+  // prefill with the current room settings if one is already open
   useEffect(() => {
     if (!room || room.price === 0n) return
     setPrice(formatEther(room.price))
@@ -60,9 +60,9 @@ export function Dashboard() {
       try {
         wei = parseEther(price.replace(',', '.'))
       } catch {
-        throw new Error('Цена должна быть числом, например 0.05')
+        throw new Error('Price must be a number, for example 0.05')
       }
-      if (wei <= 0n) throw new Error('Цена должна быть больше нуля, иначе комната считается закрытой')
+      if (wei <= 0n) throw new Error('Price must be above zero — zero means the room is closed')
 
       const args = [wei, channel.trim() ? `${kind}:${channel.trim()}` : ''] as const
       const call = { address: CONTRACT_ADDRESS, abi: STREAM_CHAT_ABI, functionName: 'setRoom', args } as const
@@ -72,7 +72,7 @@ export function Dashboard() {
         const hash = await walletFor(account).writeContract({ ...call, gas })
         setLastTx(hash)
         const receipt = await publicClient.waitForTransactionReceipt({ hash })
-        if (receipt.status !== 'success') throw new Error('Транзакция ревертнулась')
+        if (receipt.status !== 'success') throw new Error('Transaction reverted')
       })
       await refresh()
     } catch (err) {
@@ -83,7 +83,7 @@ export function Dashboard() {
   }
 
   if (!account) {
-    return <p className="p-8 text-sm text-muted">Создаю кошелёк…</p>
+    return <p className="p-8 text-sm text-muted">Creating your wallet…</p>
   }
 
   const enoughGas = balance > parseEther('0.05')
@@ -94,16 +94,16 @@ export function Dashboard() {
         <span className="text-mon">◆</span> MonadChat
       </Link>
 
-      <h1 className="mt-6 text-2xl font-bold">Кабинет стримера</h1>
+      <h1 className="mt-6 text-2xl font-bold">Streamer dashboard</h1>
       <p className="mt-2 text-sm text-muted">
-        Твоя комната привязана к кошельку, который создал этот браузер. Деньги за сообщения
-        приходят на него мгновенно, без вывода и посредников.
+        Your room is tied to the wallet this browser created. Money for messages lands there
+        instantly — no withdrawals, no middlemen.
       </p>
 
       <section className="mt-6 rounded-lg border border-edge bg-panel p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wide text-muted">твой адрес</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted">your address</div>
             <a
               href={addressUrl(account.address)}
               target="_blank"
@@ -114,7 +114,7 @@ export function Dashboard() {
             </a>
           </div>
           <div className="shrink-0 text-right">
-            <div className="text-[10px] uppercase tracking-wide text-muted">баланс</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted">balance</div>
             <div className="text-sm font-bold tabular-nums">{fmtMon(balance)} MON</div>
           </div>
           <button
@@ -122,28 +122,27 @@ export function Dashboard() {
             disabled={funding}
             className="shrink-0 rounded bg-mon px-3 py-1.5 text-xs font-medium text-white hover:bg-mon-soft disabled:opacity-50"
           >
-            {funding ? 'наливаю…' : '+1 MON'}
+            {funding ? 'funding…' : '+1 MON'}
           </button>
         </div>
-        {faucetError && <p className="mt-2 text-xs text-red-400">Кран: {faucetError}</p>}
+        {faucetError && <p className="mt-2 text-xs text-red-400">Faucet: {faucetError}</p>}
         {!enoughGas && !faucetError && (
           <p className="mt-2 text-xs text-amber-400">
-            На газ не хватает — нажми «+1 MON» перед тем, как открывать комнату.
+            Not enough for gas — hit “+1 MON” before opening the room.
           </p>
         )}
         {isOpen && (
           <p className="mt-3 border-t border-edge pt-3 text-xs text-muted">
-            заработано за всё время:{' '}
-            <b className="text-white tabular-nums">{fmtMon(room!.earned)} MON</b>
+            earned all time: <b className="text-white tabular-nums">{fmtMon(room!.earned)} MON</b>
           </p>
         )}
       </section>
 
       <form onSubmit={save} className="mt-6 space-y-5 rounded-lg border border-edge bg-panel p-5">
         <div>
-          <label className="block text-sm font-medium">Цена одного сообщения</label>
+          <label className="block text-sm font-medium">Price per message</label>
           <p className="mt-1 text-xs text-muted">
-            Дешевле 0.02 MON смысла нет: газ одного сообщения — около 0.013 MON.
+            Below 0.02 MON it stops making sense: gas alone costs about 0.013 MON per message.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <input
@@ -157,9 +156,10 @@ export function Dashboard() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Где ты стримишь</label>
+          <label className="block text-sm font-medium">Where you stream</label>
           <p className="mt-1 text-xs text-muted">
-            Мы не заменяем Twitch — мы даём платный чат поверх него. Оставь пустым, если стрима пока нет.
+            We do not replace Twitch — we add a paid chat on top of it. Leave empty if you are not
+            live yet.
           </p>
           <div className="mt-2 flex gap-2">
             <select
@@ -185,15 +185,15 @@ export function Dashboard() {
           disabled={busy}
           className="w-full rounded-md bg-mon px-4 py-2.5 text-sm font-semibold text-white hover:bg-mon-soft disabled:opacity-50"
         >
-          {busy ? 'отправляю транзакцию…' : isOpen ? 'Обновить комнату' : 'Открыть комнату'}
+          {busy ? 'sending transaction…' : isOpen ? 'Update room' : 'Open room'}
         </button>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         {lastTx && !error && !busy && (
           <p className="text-xs text-muted">
-            готово ·{' '}
+            done ·{' '}
             <a href={txUrl(lastTx)} target="_blank" rel="noreferrer" className="text-mon-soft hover:underline">
-              транзакция в эксплорере
+              transaction in the explorer
             </a>
           </p>
         )}
@@ -201,12 +201,9 @@ export function Dashboard() {
 
       {isOpen && (
         <section className="mt-6 space-y-3 rounded-lg border border-mon/30 bg-mon/5 p-5">
-          <h2 className="text-sm font-semibold">Комната открыта. Раздавай ссылки:</h2>
-          <LinkRow label="Зрителям" href={`${origin}/r/${account.address}`} />
-          <LinkRow
-            label="В OBS как Browser Source"
-            href={`${origin}/overlay/${account.address}`}
-          />
+          <h2 className="text-sm font-semibold">Room is open. Share these links:</h2>
+          <LinkRow label="For viewers" href={`${origin}/r/${account.address}`} />
+          <LinkRow label="For OBS Browser Source" href={`${origin}/overlay/${account.address}`} />
         </section>
       )}
     </main>
@@ -230,7 +227,7 @@ function LinkRow({ label, href }: { label: string; href: string }) {
           }}
           className="shrink-0 rounded border border-edge px-2 py-1.5 text-xs hover:border-mon"
         >
-          {copied ? 'скопировано' : 'копировать'}
+          {copied ? 'copied' : 'copy'}
         </button>
       </div>
     </div>
