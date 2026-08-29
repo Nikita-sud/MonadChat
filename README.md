@@ -103,6 +103,109 @@ in [docs/09-measured-facts.md](docs/09-measured-facts.md):
 4. **Only the official endpoint serves WebSocket subscriptions** → a 3 s `getLogs`
    poll backs up the socket so the live feed survives disconnects.
 
+## Technical deep dive
+
+### The contract ([`StreamChat.sol`](contracts/StreamChat.sol) — 67 lines, no dependencies)
+
+```solidity
+struct Room { uint256 price; string streamUrl; }        // keyed by streamer address
+mapping(address => Room)    public rooms;
+mapping(address => uint256) public earned;              // lifetime earnings (for dashboards)
+mapping(address => uint256) public messageCount;        // stable per-room message index
+
+function setRoom(uint256 weiPerMessage, string calldata streamUrl) external;
+function sendMessage(address streamer, string calldata nickname, string calldata text) external payable;
+
+event MessageSent(address indexed streamer, address indexed sender,
+                  uint256 amount, string nickname, string text,
+                  uint256 timestamp, uint256 index);
+```
+
+Design decisions:
+
+- **Message text is never written to storage** — only to the event. Calldata + log
+  data cost a fraction of `SSTORE`; the chain is the database, the event log is the
+  table. Limits: text ≤ 280 bytes, nickname ≤ 24 bytes.
+- **Push payment**: `streamer.call{value: msg.value}("")` inside `sendMessage`,
+  state updated before the external call — re-entering can only buy another
+  message at full price.
+- **Room = msg.sender**: only the wallet that gets paid can set its own price and
+  stream URL. That is the entire permission model — no owner, no admin keys.
+- Typed errors (`RoomClosed`, `Underpaid`, `TooLong`, `EmptyText`) map straight to
+  human messages in the UI.
+- Measured gas: deploy 567k · `sendMessage` ~118k · `setRoom` ~75k.
+
+### Send path (~0.5–1.3 s from click to chain)
+
+```
+estimateContractGas ──×1.075──▶ takeNonce (local counter, 1 RPC on first use)
+        │                              │
+        ▼                              ▼
+signTransaction (in-browser, EIP-1559, pinned fees: maxFee 300 gwei / priority 2 gwei)
+        │
+        ├─ hash = keccak256(rawTx)  ← known BEFORE broadcast (kills a UI race)
+        ▼
+eth_sendRawTransaction ──▶ waitForTransactionReceipt (250 ms polling)
+        ▼
+ingest(receipt.logs)  ← own message confirmed from the receipt, not the WebSocket
+```
+
+- Local signing + a locally tracked nonce remove three RPC round-trips per message
+  (`eth_chainId`, `eth_getTransactionCount`, fee queries) — that alone cut ~1.5 s.
+- Fees are pinned because Monad's base fee floor is 100 gwei and
+  `eth_maxPriorityFeePerGas` is a hardcoded 2 gwei stub; the charge is
+  `min(base + priority, maxFee) × gas_limit`, so a generous `maxFee` costs nothing.
+- **Optimistic dedup**: each pending message is matched to its chain event by tx
+  hash *or* by `(sender, text)` — on a slow RPC the WebSocket event can arrive
+  before the RPC returns the hash, which used to duplicate the row.
+
+### Read path
+
+- **History**: `eth_getLogs` in 100-block windows (every public endpoint rejects
+  larger ranges — measured) — 60 windows ≈ 40 minutes of history, folded by viem's
+  JSON-RPC batching into a couple of HTTP calls.
+- **Live**: `eth_subscribe(logs)` over WebSocket. Only the official endpoint
+  serves subscriptions, and it is the flakiest — so a 3 s `getLogs` poll runs as a
+  safety net; `txHash:logIndex` dedup makes the two sources idempotent.
+- **Reorg tolerance**: `latest` on Monad is the *Proposed* (speculative) state —
+  fine for chat rows; money figures (`earned`) are read via `eth_call` and refresh
+  on a poll.
+
+### RPC infrastructure (measured on hackathon day)
+
+| Endpoint | 6 identical `eth_call`s | Median |
+|---|---|---|
+| `rpc.ankr.com/monad_testnet` | **6/6 ok** | 180 ms |
+| `10143.rpc.thirdweb.com` | **6/6 ok** | 437 ms |
+| `testnet-rpc.monad.xyz` (official) | 2/6 ok | 132 ms |
+| `monad-testnet.drpc.org` | 3/6 ok | 202 ms |
+
+viem `fallback` transport in that order, `retryCount: 0` per endpoint (a throttled
+RPC should hand over instantly, not retry), batching `{ wait: 20, batchSize: 25 }`
+to stay under the public 25 req/s cap.
+
+### Reserve balance: the rule that shaped the app
+
+Monad guarantees inclusion fees via a 10 MON *reserve*: consensus admits inflight
+transactions only while `Σ gas_fees ≤ min(10 MON, balance)`, and a wallet below
+10 MON gets exactly **one spending ("emptying") transaction per k=3 blocks
+(~1.2 s)** — later ones are included but **revert, still paying gas**. Our live
+experiment (5 txs fired in one second from a 5 MON wallet):
+
+```
+tx 0  success          tx 1–4  reverted · gas paid
+```
+
+Consequences in code: a serial send queue with a 1.7 s gap (4 blocks), shared
+across browser tabs via `localStorage` so two tabs of one wallet can't burn each
+other's gas; and “← return balance” rides the emptying-transaction exception.
+
+### Faucet
+
+`POST https://agents.devnads.com/v1/faucet {chainId, address}` → 1 MON per call.
+The app calls it through its own API route and falls back to a direct browser call
+(the faucet serves CORS) — so the frontend also works from any static host.
+
 ## Repository layout
 
 | Path | Contents |
