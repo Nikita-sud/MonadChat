@@ -23,17 +23,17 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-6 py-8">
       <div className="flex items-center gap-2.5 font-display text-2xl">
         <span className="h-2.5 w-2.5 bg-stamp" aria-hidden />
         MonadChat
       </div>
 
-      <h1 className="mt-6 font-display text-5xl leading-[0.95] sm:text-6xl">
+      <h1 className="mt-6 font-display text-5xl leading-[0.95] sm:text-6xl lg:text-7xl">
         Chat where<br />words cost <span className="text-stamp">money</span>
       </h1>
 
-      <p className="mt-5 max-w-xl text-[16px] leading-relaxed">
+      <p className="mt-5 max-w-2xl text-[16px] leading-relaxed lg:text-[17px]">
         Every message in a stream chat is a Monad transaction. To speak you have to pay, and the
         money lands in the streamer&apos;s wallet immediately — no platform in between. Spam gets
         expensive, attention gets honestly paid for.
@@ -49,7 +49,7 @@ export default function Home() {
         href={`/r/${DEMO_ROOM}`}
         className="mt-7 block bg-ink px-6 py-4 text-center transition-colors hover:bg-stamp"
       >
-        <span className="font-display text-2xl text-paper">Open the live demo →</span>
+        <span className="font-display text-2xl text-paper sm:text-3xl">Open the live demo →</span>
         <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.18em] text-paper/70">
           a real room · live lofi stream · every message lands on Monad
         </span>

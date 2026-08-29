@@ -279,7 +279,7 @@ export function Chat({ streamer, price }: { streamer: Address; price: bigint }) 
           </div>
         </div>
         {(mmAvailable || mainWallet) && (
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             {mmAvailable && (
               <button
                 onClick={topUp}
