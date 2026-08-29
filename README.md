@@ -1,23 +1,77 @@
 # MonadChat
 
-Pay-per-message chat for streamers on Monad. Зритель платит MON за каждое сообщение, стример получает деньги мгновенно, чат и OBS-оверлей обновляются в реальном времени по WebSocket.
+**Чат для стримов, где право голоса стоит денег.** Каждое сообщение — транзакция в Monad:
+чтобы написать, нужно заплатить, и деньги уходят стримеру мгновенно, без платформы-посредника.
 
-## Docs (читать в этом порядке)
+Блок в Monad — около 400 мс, поэтому сообщение появляется в чате за **полсекунды** после
+нажатия «отправить». На Ethereum такой продукт физически не существует: это не «блокчейн,
+прикрученный к чату», а витрина сети, в которой транзакция может быть репликой в диалоге.
 
-| Файл | Что внутри |
+- **Контракт:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadvision.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8) · Monad Testnet (chainId 10143)
+- **Замеренная задержка:** 0.47–0.56 с от клика до подтверждения в цепочке
+
+## Что делает продукт
+
+| | |
 |---|---|
-| [docs/00-MVP-PLAN.md](docs/00-MVP-PLAN.md) | План на 5 часов, стек, архитектура, сценарий демо, гочи |
-| [docs/01-monad-network.md](docs/01-monad-network.md) | Chain ID, RPC/WS, explorers, faucet (API), канонические адреса |
-| [docs/02-monad-vs-ethereum.md](docs/02-monad-vs-ethereum.md) | Газ по gas_limit, Reserve Balance 10 MON, block tags, лимиты RPC, WebSocket |
-| [docs/03-foundry-deploy-verify.md](docs/03-foundry-deploy-verify.md) | Установка Foundry, foundry.toml, деплой, верификация |
-| [docs/04-frontend-realtime.md](docs/04-frontend-realtime.md) | wagmi/viem config, connect, sendMessage, live-события, оверлей |
-| [docs/05-contract-design.md](docs/05-contract-design.md) | StreamChat.sol + тесты + экономика |
-| [docs/06-resources-links.md](docs/06-resources-links.md) | Все ссылки Blitz + индекс docs.monad.xyz |
-| [docs/07-extras-x402-indexers-aa.md](docs/07-extras-x402-indexers-aa.md) | x402, индексеры, AA/EIP-7702, real-time SDK |
-| [docs/08-deploy-hosting-and-demo.md](docs/08-deploy-hosting-and-demo.md) | **Vercel пошагово (домен не нужен)**, интеграция с Twitch/YouTube/Kick, сценарии демо |
+| **Платный чат** | Стример задаёт цену слова. Заплатил — написал. 100 % суммы уходит ему сразу. |
+| **Анти-спам от сети** | Reserve balance Monad не даёт одному кошельку слать чаще одного сообщения в ~1.2 с. Это правило консенсуса, а не наш сервер, и обойти его нельзя. |
+| **Кошелёк не нужен** | Приложение создаёт его само в браузере, а встроенный кран наливает MON по кнопке. Зритель начинает писать за десять секунд, без расширений и seed-фраз. |
+| **Оверлей для OBS** | Прозрачная страница, которая кладётся поверх видео: оплаченные сообщения всплывают прямо на стриме. |
+| **Поверх Twitch, а не вместо** | Стример продолжает вещать где вещал — мы даём платный чат-слой поверх Twitch, YouTube или Kick. |
 
-## Quick facts
+## Как устроено
 
-- Monad Testnet: chainId **10143**, RPC `https://testnet-rpc.monad.xyz`, WS `wss://testnet-rpc.monad.xyz`, explorer https://testnet.monadvision.com
-- Faucet: `curl -X POST https://agents.devnads.com/v1/faucet -H 'Content-Type: application/json' -d '{"chainId":10143,"address":"0x..."}'`
-- Foundry ≥ 1.8 с `network = "monad"`; фронт — `import { monadTestnet } from "viem/chains"`
+```
+Зритель (кошелёк в браузере)
+   │  sendMessage{value}
+   ▼
+StreamChat.sol ──── MON ───▶ кошелёк стримера (сразу, push)
+   │
+   └── emit MessageSent(streamer, sender, amount, nickname, text, ts, index)
+              │
+      ┌───────┴────────┐
+      ▼                ▼
+  /r/<адрес>      /overlay/<адрес>
+  чат зрителя     оверлей в OBS
+```
+
+Ни бэкенда, ни индексера, ни базы данных: текст сообщений живёт в событиях контракта,
+фронт читает их напрямую — историю через `eth_getLogs`, живую ленту через подписку по WebSocket.
+
+## Запуск
+
+```bash
+npm install && npm --prefix web install
+npm --prefix web run dev
+```
+
+Открыть `http://localhost:3000/dashboard`, нажать «+1 MON», открыть комнату — и раздать
+ссылку на `/r/<свой адрес>`.
+
+Пересобрать и передеплоить контракт (нужен `DEPLOYER_PRIVATE_KEY` в `.env.local`):
+
+```bash
+npm run compile && npm run deploy && npm run test:live
+```
+
+`deploy` сам обновляет адрес и ABI во фронте (`web/src/lib/deployment.ts`).
+
+## Структура
+
+| Путь | Что там |
+|---|---|
+| `contracts/StreamChat.sol` | Контракт целиком, 67 строк |
+| `scripts/` | Компиляция (solc), деплой и интеграционные тесты на живом тестнете |
+| `web/src/lib/` | Клиенты сети, кошелёк, очередь отправки, чтение событий |
+| `web/src/components/` | Чат, комната, кабинет стримера, оверлей |
+| `docs/09-measured-facts.md` | **Замеры на живой сети** — газ, лимиты, reserve balance |
+
+## Документация
+
+`docs/09-measured-facts.md` содержит проверенные на сети цифры и в спорных местах
+имеет приоритет над остальными файлами. Ключевое, что стоит знать до того, как трогать код:
+
+1. Газ списывается по `gas_limit`, возврата нет — буфер к оценке 7.5 %, не ×2.
+2. Кошелёк с балансом < 10 MON шлёт одну тратящую транзакцию раз в ~1.2 с, остальные ревертятся, но газ платят.
+3. Публичный RPC ограничен 25 запросами в секунду — параллельные вызовы обязаны батчиться.

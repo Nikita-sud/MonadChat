@@ -7,3 +7,6 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 web/.next/
+
+# TypeScript
+*.tsbuildinfo
