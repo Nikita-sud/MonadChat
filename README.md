@@ -1,82 +1,136 @@
-# MonadChat
+# MonadChat — chat where words cost money
 
-**Stream chat where words cost money.** Every message is a Monad transaction: to speak you pay,
-and the money lands in the streamer's wallet immediately — no platform in between.
-
-A Monad block takes about 300–400 ms, so a paid message shows up in chat in **well under a
-second**. This is not a blockchain bolted onto a chat app: it is a product that only exists on a
-chain fast enough for a transaction to be a line of conversation.
-
-- **Live:** https://monadchat-rvfc1.vercel.app
-- **Contract:** [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadscan.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8#code) on Monad Testnet (chain 10143)
-- **Measured latency:** 0.5–1.3 s from clicking send to the message appearing on chain
-
-## What it does
+**Superchat without the platform.** Every message in a stream chat is a real Monad
+transaction: to speak you pay, and the streamer receives 100% of the price the same
+second — no middleman, no payout day.
 
 | | |
 |---|---|
-| **Paid chat** | The streamer sets the price of a word. Pay, and you can post. 100% goes straight to them. |
-| **Anti-spam from the network** | Monad's reserve balance rule stops any single wallet posting more than once per ~1.2 s. That is consensus, not our server, and a bot cannot get around it. |
-| **No wallet required** | The app creates one in the browser and the built-in faucet tops it up with one click. A viewer is posting ten seconds after opening the link — no extension, no seed phrase. |
-| **OBS overlay** | A transparent page that sits on top of the video, so paid messages appear on the stream itself. |
-| **On top of Twitch, not instead of it** | The streamer keeps streaming wherever they already stream; we add the paid chat layer. |
+| **Live app** | https://monadchat-rvfc1.vercel.app |
+| **Demo room** (live lofi stream, real messages) | https://monadchat-rvfc1.vercel.app/r/0xe9e2d6B9d3289B465c4ad761f9771Fabd0Dfe82A |
+| **Contract** (verified) | [`0xba3c36b0e9c739669e4f738cef507c72c88b4be8`](https://testnet.monadscan.com/address/0xba3c36b0e9c739669e4f738cef507c72c88b4be8#code) on Monad Testnet (chain 10143) |
+| **Pitch deck** | [`MonadChat-pitch.pptx`](MonadChat-pitch.pptx) |
+
+## Why this is only possible on Monad
+
+On older chains the idea dies on arrival: 12+ second confirmations kill the
+conversation, ~15–30 TPS for the whole world means one busy stream outruns the
+entire chain, and $1–5 of gas eats the word many times over. On Monad:
+
+- **400 ms blocks** → a message lands on chain in **0.5–1.3 s** (measured live, and
+  printed as a badge on every message in the UI);
+- **near-zero, flat fees** → the rail costs ~0.013 MON per message — a fifth of the
+  0.05 MON word price;
+- **10k-TPS-class throughput** → an entire platform's chat is normal load;
+- **consensus-level rate-limiting** (reserve balance) → built-in spam control, see below.
 
 ## How it works
 
 ```
-Viewer (wallet created in the browser)
-   │  sendMessage{value}
+Viewer (wallet created by the browser)
+   │  sendMessage{value = price}
    ▼
-StreamChat.sol ──── MON ───▶ streamer's wallet (immediately, push)
+StreamChat.sol ──── 100% of price ───▶ streamer's wallet (push, same tx)
    │
-   └── emit MessageSent(streamer, sender, amount, nickname, text, ts, index)
+   └─ emit MessageSent(streamer, sender, amount, nickname, text, ts, index)
               │
       ┌───────┴────────┐
       ▼                ▼
   /r/<address>    /overlay/<address>
-  viewer chat     OBS overlay
+  viewer chat     OBS overlay (transparent, on the video)
 ```
 
-No backend, no indexer, no database. Message text lives in contract events; the frontend reads
-history with `eth_getLogs` and the live feed over a WebSocket subscription.
+There is **no backend, no database, no indexer**. Message text lives in contract
+events; the frontend reads history with `eth_getLogs` (100-block windows, batched)
+and the live feed over a WebSocket subscription, with a polling safety net and
+automatic failover across four public RPCs.
 
-## Running it
+### Viewer flow
 
-```bash
-npm install && npm --prefix web install
-npm --prefix web run dev
-```
+1. Open a room link. The app generates a wallet in `localStorage` — no extension,
+   no seed phrase.
+2. Hit **+1 MON** — the built-in faucet funds the wallet. You are typing within
+   ten seconds.
+3. Every send is a signed transaction. It appears instantly (optimistic row), then
+   confirms with a latency badge like `0.05 · 0.62s` linking to the explorer.
 
-Open `http://localhost:3000/dashboard`, click “+1 MON”, open your room, and share the
-`/r/<your address>` link.
+### Session wallet + MetaMask (optional)
 
-Rebuild and redeploy the contract (needs `DEPLOYER_PRIVATE_KEY` in `.env.local`):
+MetaMask is a **fuel pump**, not a per-message signer:
 
-```bash
-npm run compile && npm run deploy && npm run test:live
-```
+- **↑ top up 0.5 MON · MetaMask** — one confirmation moves MON into the session
+  wallet; after that every message flies popup-free.
+- **↓ return balance** — sends the remaining session balance back to the wallet
+  that funded it. No popup needed: the session wallet signs for itself.
 
-`deploy` writes the new address and ABI into the frontend automatically.
+MetaMask is discovered via **EIP-6963**, so it works even with several wallet
+extensions installed. The Monad Testnet network is added/switched automatically.
 
-## Layout
+### Streamer flow
+
+1. Open `/dashboard`. Your room is keyed to your wallet — the browser one by
+   default, or **connect MetaMask** so earnings land in your own wallet.
+2. Set a price per word and where you stream (paste any link — Twitch / YouTube /
+   Kick URLs are normalized automatically). **Open room** = one transaction.
+3. Share `/r/<your address>` with viewers and drop `/overlay/<your address>` into
+   OBS as a Browser Source — paid messages appear on the video itself.
+
+### Spam control (three layers)
+
+1. **Words cost money.** Flooding a room pays the streamer per line — an "attack"
+   is literally revenue, and the streamer can raise the price at any time.
+2. **Consensus rate-limit.** Monad's reserve balance rule lets a wallet holding
+   < 10 MON land only **one spending tx per ~1.2 s**; the rest revert *and still
+   pay gas*. Verified empirically: 5 txs fired at once → 1 landed, 4 burned.
+   Bot farms are throttled by the chain itself, not by our server.
+3. **A client-side send queue** spaces transactions so honest users never hit
+   rule 2 by accident (synchronized across tabs via `localStorage`).
+
+## Monad-specific engineering
+
+Everything below was measured against the live network — details and raw numbers
+in [docs/09-measured-facts.md](docs/09-measured-facts.md):
+
+1. **Gas is charged on `gas_limit`, not usage, with no refund** → estimates ship
+   with a 7.5% buffer instead of the usual ×2 (padding would double the viewer's
+   cost). Fees are pinned (`maxFee` 300 gwei over a ~100 gwei base) to skip
+   per-send fee queries.
+2. **Local nonce + local signing** → `eth_sendRawTransaction` with a pre-computed
+   hash cuts three RPC round-trips per message.
+3. **Public RPC throttles hard on busy days** (measured: 2/6 calls served) → viem
+   `fallback` transport across four endpoints, ordered by measured reliability;
+   JSON-RPC batching keeps the app under the 25 req/s cap.
+4. **Only the official endpoint serves WebSocket subscriptions** → a 3 s `getLogs`
+   poll backs up the socket so the live feed survives disconnects.
+
+## Repository layout
 
 | Path | Contents |
 |---|---|
-| `contracts/StreamChat.sol` | The whole contract, 67 lines |
-| `scripts/` | Compile (solc), deploy, and integration tests that run against live testnet |
-| `web/src/lib/` | Chain clients, wallet, send queue, event reading |
-| `web/src/components/` | Chat, room, streamer dashboard, overlay |
-| `docs/09-measured-facts.md` | **Numbers measured on the live network** — gas, limits, reserve balance |
+| [`contracts/StreamChat.sol`](contracts/StreamChat.sol) | The whole contract — 67 lines, verified |
+| [`scripts/`](scripts) | solc compile, deploy, live-network integration tests, demo seeding |
+| [`web/src/lib/`](web/src/lib) | chain clients, wallets, send queue, event reading |
+| [`web/src/components/`](web/src/components) | chat, room, dashboard, OBS overlay |
+| [`docs/`](docs) | measured facts (09), demo script (10), identity model (11) |
 
-## Three things Monad does differently, and what they cost us
+## Running locally
 
-1. **Gas is charged on `gas_limit`, not on usage, with no refund.** A padded gas limit is money
-   out of the viewer's pocket, so estimates get a 7.5% buffer rather than the usual 2x.
-2. **A wallet holding less than 10 MON lands one spending transaction every ~1.2 s; the rest
-   revert and still pay gas.** We measured it: of five sent back to back, one succeeded and four
-   burned gas. Hence the serial send queue — and the anti-spam story above.
-3. **The public RPC is shared by every builder on the network.** On hackathon day it rejected two
-   thirds of our calls, which broke both history loading and the WebSocket handshake. The app now
-   fails over across four independent endpoints, ordered by measured reliability.
+```bash
+npm install && npm --prefix web install
+npm --prefix web run dev          # http://localhost:3000
+```
 
-Details and raw measurements: `docs/09-measured-facts.md`.
+Contract lifecycle (needs `DEPLOYER_PRIVATE_KEY` in `.env.local`):
+
+```bash
+npm run compile     # solc via Node — no Foundry required
+npm run deploy      # deploys + regenerates web/src/lib/deployment.ts
+npm run test:live   # 14 integration checks against the live testnet
+npm run deploy:web  # Vercel production deploy
+node scripts/setup-demo.mjs   # (re)seed the demo room with fresh messages
+```
+
+---
+
+Built at **Monad Blitz · Amsterdam · 2026**. Every number in this README was
+measured on hackathon day, not quoted from docs.
